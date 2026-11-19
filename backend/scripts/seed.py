@@ -1,107 +1,125 @@
-# Pode rodar várias vezes: não duplica dados que já existem.
+# Popula o banco com dados iniciais (usuários, locais, equipamentos e o template
+# do checklist) lendo arquivos JSON da pasta definida em settings.SEED_DIR.
+# Pode ser executado várias vezes: só insere o que ainda não existe.
+# Dependência extra:  pip install argon2-cffi
+# Como rodar (na raiz do projeto):  python -m app.seed
+
 import json
-import os
 from pathlib import Path
 
 from argon2 import PasswordHasher
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
+from sqlalchemy import select
 
-from app import models as m
-from app.db import Base
+import app.models as m
+from app.config import settings
+from app.db import Base, SessionLocal, engine
 
-PASTA_DADOS = Path(__file__).parent / "dados"
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+# Objeto que gera e verifica hashes argon2 (usa parâmetros seguros por padrão)
+ph = PasswordHasher()
 
-hasher = PasswordHasher()  # argon2
-
-
-def ler_json(nome_arquivo: str) -> dict:
-    caminho = PASTA_DADOS / nome_arquivo
-    with open(caminho, encoding="utf-8") as f:
-        return json.load(f)
+ARQ_DEMO = "demo_usuarios_locais_equipamentos.json"
+ARQ_TEMPLATE = "checklist_template_for_opp_0017_v5.json"
 
 
-def seed_usuarios(db: Session, lista: list[dict]) -> None:
-    for u in lista:
-        existe = db.scalar(select(m.Usuario).where(m.Usuario.matricula == u["matricula"]))
-        if existe:
-            continue
-        db.add(
-            m.Usuario(
-                matricula=u["matricula"],
-                nome=u["nome"],
-                papel=u["papel"],
-                pin_hash=hasher.hash(u["pin"]),  # nunca salvar o PIN puro
+def ler(nome: str) -> dict:
+    """Lê um arquivo JSON de dentro de settings.SEED_DIR."""
+    caminho = Path(settings.SEED_DIR) / nome
+    if not caminho.exists():
+        raise FileNotFoundError(f"Arquivo de seed não encontrado: {caminho}")
+    return json.loads(caminho.read_text(encoding="utf-8"))
+
+
+def hash_pin(pin: str) -> str:
+    """Transforma o PIN em hash argon2 (o PIN em texto puro nunca vai ao banco)."""
+    return ph.hash(pin)
+
+
+def seed_demo(db, demo: dict) -> dict:
+    """Cria usuários, locais e equipamentos que ainda não existem."""
+    criados = {"usuarios": 0, "locais": 0, "equipamentos": 0}
+
+    for u in demo["usuarios"]:
+        existe = db.scalars(select(m.Usuario).filter_by(matricula=u["matricula"])).first()
+        if not existe:
+            db.add(
+                m.Usuario(
+                    matricula=u["matricula"],
+                    nome=u["nome"],
+                    papel=u["papel"],
+                    pin_hash=hash_pin(u["pin"]),
+                )
             )
-        )
+            criados["usuarios"] += 1
 
-
-def seed_locais(db: Session, lista: list[dict]) -> None:
-    for item in lista:
-        existe = db.scalar(select(m.Local).where(m.Local.nome == item["nome"]))
+    for loc in demo["locais"]:
+        existe = db.scalars(select(m.Local).filter_by(nome=loc["nome"])).first()
         if not existe:
-            db.add(m.Local(nome=item["nome"]))
+            db.add(m.Local(nome=loc["nome"]))
+            criados["locais"] += 1
 
-
-def seed_equipamentos(db: Session, lista: list[dict]) -> None:
-    for item in lista:
-        existe = db.scalar(
-            select(m.Equipamento).where(m.Equipamento.identificacao == item["identificacao"])
-        )
+    for eq in demo["equipamentos"]:
+        existe = db.scalars(
+            select(m.Equipamento).filter_by(identificacao=eq["identificacao"])
+        ).first()
         if not existe:
-            db.add(m.Equipamento(identificacao=item["identificacao"]))
+            # O campo "observacao" do JSON é só uma nota; não existe no modelo, então é ignorado
+            db.add(m.Equipamento(identificacao=eq["identificacao"]))
+            criados["equipamentos"] += 1
+
+    return criados
 
 
-def seed_template(db: Session, dados: dict) -> None:
-    existe = db.scalar(
-        select(m.Template).where(
-            m.Template.codigo == dados["codigo"],
-            m.Template.versao == dados["versao"],
-        )
-    )
+def seed_template(db, t: dict) -> int:
+    """Cria o template e seus itens, se essa combinação código + versão ainda não existe.
+
+    Retorna a quantidade de itens criados (0 se o template já existia).
+    """
+    existe = db.scalars(
+        select(m.Template).filter_by(codigo=t["codigo"], versao=t["versao"])
+    ).first()
     if existe:
-        return
+        return 0
 
-    # Versões antigas do mesmo formulário deixam de ser a ativa
-    antigos = db.scalars(select(m.Template).where(m.Template.codigo == dados["codigo"]))
-    for antigo in antigos:
-        antigo.ativo = False
+    tpl = m.Template(
+        codigo=t["codigo"],
+        versao=t["versao"],
+        data_versao=t["data_versao"],
+        titulo=t["titulo"],
+    )
+    db.add(tpl)
+    db.flush()  # envia ao banco para que tpl.id já esteja disponível
 
-    template = m.Template(
-        codigo=dados["codigo"],
-        versao=dados["versao"],
-        data_versao=dados["data_versao"],
-        titulo=dados["titulo"],
-        ativo=True,
-        itens=[
+    for i in t["itens"]:
+        db.add(
             m.TemplateItem(
+                template_id=tpl.id,
                 numero=i["numero"],
                 descricao=i["descricao"],
-                critico=i["critico"],
-                permite_na=i["permite_na"],
+                critico=i.get("critico", False),
+                permite_na=i.get("permite_na", True),
             )
-            for i in dados["itens"]
-        ],
-    )
-    db.add(template)
+        )
+    return len(t["itens"])
 
 
 def main() -> None:
-    engine = create_engine(DATABASE_URL)
-    Base.metadata.create_all(engine)  # cria as tabelas se ainda não existirem
+    # Cria as tabelas que ainda não existem
+    Base.metadata.create_all(engine)
 
-    demo = ler_json("demo.json")
-    template = ler_json("checklist_template.json")
+    demo = ler(ARQ_DEMO)
+    template = ler(ARQ_TEMPLATE)
 
-    with Session(engine) as db:
-        seed_usuarios(db, demo["usuarios"])
-        seed_locais(db, demo["locais"])
-        seed_equipamentos(db, demo["equipamentos"])
-        seed_template(db, template)
+    # "with" garante que a sessão é fechada; se der erro antes do commit, nada é salvo
+    with SessionLocal() as db:
+        criados = seed_demo(db, demo)
+        itens = seed_template(db, template)
         db.commit()
 
-    print("Seed concluído.")
+    print("seed ok")
+    print(
+        f"  usuários: {criados['usuarios']} | locais: {criados['locais']} "
+        f"| equipamentos: {criados['equipamentos']} | itens de template: {itens}"
+    )
 
 
 if __name__ == "__main__":
