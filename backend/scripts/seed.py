@@ -2,7 +2,10 @@
 # do checklist) lendo arquivos JSON da pasta definida em settings.SEED_DIR.
 # Pode ser executado várias vezes: só insere o que ainda não existe.
 # Dependência extra:  pip install argon2-cffi
-# Como rodar (na raiz do projeto):  python -m app.seed
+# Como rodar (na raiz do projeto):  
+# Rode o seed (se ainda não rodou): python -m app.seed
+# Suba a API: uvicorn app.main:app --reload
+# Abra http://127.0.0.1:8000/docs, clique em POST /api/v1/auth/login → Try it out e envie:
 
 import json
 from pathlib import Path

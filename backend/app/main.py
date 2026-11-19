@@ -9,7 +9,6 @@ from app.routers import auth
 
 app = FastAPI(title="Checklist Guindaste API", version="0.1.0")
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGENS.split(","),
@@ -21,7 +20,9 @@ app.add_middleware(
 app.add_exception_handler(ErroNegocio, tratar_erro_negocio)
 app.add_exception_handler(RequestValidationError, tratar_erro_validacao)
 
+# Rotas da API (cada arquivo em app/routers/ é registrado aqui)
 app.include_router(auth.router, prefix="/api/v1")
+
 
 @app.get("/api/v1/health")
 def health():
