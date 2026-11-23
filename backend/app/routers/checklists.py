@@ -6,13 +6,15 @@
 # (reenviar a mesma requisição não duplica nada).
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.erros import ErroNegocio
-from app.models import Checklist, Equipamento, Evento, Local, Resposta, Revisao, Template
+from app.models import (Checklist, Equipamento, Evento, Local, Resposta, Revisao, Template,
+                        TemplateItem, Usuario)
 from app.schemas import ChecklistIn
 from app.security import usuario_atual
 from app.services.eventos import CAMPOS, calcular_diff
@@ -124,3 +126,81 @@ def _aplicar(c: Checklist, dados: dict, impedido: bool) -> None:
 
 def _resumo(c: Checklist) -> dict:
     return {"id": c.id, "status": c.status, "revisao": c.revisao, "impedido": c.impedido, "editado": c.editado}
+
+
+# ---------------------------------------------------------------------------
+# Consultas (GET)
+# ---------------------------------------------------------------------------
+def _resumo_lista(db, c: Checklist) -> dict:
+    op = db.get(Usuario, c.operador_id)
+    motivo = None
+    if c.status == "CORRECAO_SOLICITADA":
+        ev = (db.query(Evento).filter_by(checklist_id=c.id, tipo="CORRECAO_SOLICITADA")
+              .order_by(Evento.criado_em.desc()).first())
+        motivo = (ev.detalhe or {}).get("motivo") if ev else None
+    return {"id": c.id, "status": c.status, "impedido": c.impedido, "editado": c.editado,
+            "revisao": c.revisao, "usou_lote": c.usou_lote,
+            "operador": {"id": op.id, "nome": op.nome},
+            "equipamento": db.get(Equipamento, c.equipamento_id).identificacao,
+            "local": db.get(Local, c.local_id).nome, "turno": c.turno, "data_turno": c.data_turno,
+            "recebido_em": c.recebido_em.isoformat(), "motivo_correcao": motivo}
+
+
+@router.get("/checklists")
+def listar(status: str | None = None, equipamento_id: str | None = None, local_id: str | None = None,
+           impedido: bool | None = None, db: Session = Depends(get_db), usuario=Depends(usuario_atual)):
+    base = db.query(Checklist)
+    if usuario.papel == "OPERADOR":
+        base = base.filter(Checklist.operador_id == usuario.id)
+    todos = base.all()
+    hoje = datetime.now(timezone.utc).date()
+    contadores = {
+        "pendentes": sum(c.status == "ENVIADO" for c in todos),
+        "impedidos": sum(c.impedido and c.status != "VISTADO" for c in todos),
+        "correcao": sum(c.status == "CORRECAO_SOLICITADA" for c in todos),
+        "vistados_hoje": sum(c.status == "VISTADO" and c.vistado_em and c.vistado_em.date() == hoje for c in todos),
+    }
+    q = base
+    if status: q = q.filter(Checklist.status == status)
+    if equipamento_id: q = q.filter(Checklist.equipamento_id == equipamento_id)
+    if local_id: q = q.filter(Checklist.local_id == local_id)
+    if impedido is not None: q = q.filter(Checklist.impedido == impedido)
+    q = q.order_by(Checklist.impedido.desc(), Checklist.recebido_em.desc())
+    return {"contadores": contadores, "itens": [_resumo_lista(db, c) for c in q.all()]}
+
+
+def _detalhe(db, c: Checklist) -> dict:
+    """Checklist completo: o resumo da lista + os mesmos campos do corpo do PUT."""
+    itens = {i.numero: i for i in db.query(TemplateItem).filter_by(template_id=c.template_id)}
+    vistador = db.get(Usuario, c.vistado_por) if c.vistado_por else None
+    return {**_resumo_lista(db, c),
+            "template_id": c.template_id, "equipamento_id": c.equipamento_id, "local_id": c.local_id,
+            "data_turno": c.data_turno, "turno": c.turno, "navio": c.navio,
+            "horimetro_inicial": c.horimetro_inicial, "horimetro_final": c.horimetro_final,
+            "combustivel_pct": c.combustivel_pct,
+            "hora_entrada": c.hora_entrada, "hora_saida": c.hora_saida,
+            "observacao_geral": c.observacao_geral, "assinatura_operador": c.assinatura_operador,
+            "usou_lote": c.usou_lote, "itens_marcados_lote": c.itens_marcados_lote,
+            "itens_alterados_apos_lote": c.itens_alterados_apos_lote,
+            "inicio_preenchimento_em": c.inicio_preenchimento_em, "finalizado_em": c.finalizado_em,
+            "duracao_segundos": c.duracao_segundos,
+            "confirmacao_correcao": False,          # só faz sentido no PUT; aqui é sempre false
+            "criado_no_dispositivo_em": c.criado_no_dispositivo_em, "app_versao": c.app_versao,
+            "vistado": ({"por": {"id": vistador.id, "nome": vistador.nome},
+                         "em": c.vistado_em.isoformat() if c.vistado_em else None}
+                        if vistador else None),
+            "respostas": [{"item_numero": r.item_numero,
+                           "descricao": itens[r.item_numero].descricao if r.item_numero in itens else None,
+                           "critico": itens[r.item_numero].critico if r.item_numero in itens else None,
+                           "resposta": r.resposta, "origem": r.origem, "observacao": r.observacao}
+                          for r in c.respostas]}
+
+
+@router.get("/checklists/{checklist_id}")
+def obter(checklist_id: str, db: Session = Depends(get_db), usuario=Depends(usuario_atual)):
+    c = db.get(Checklist, checklist_id)
+    if c is None:
+        raise ErroNegocio(404, "NAO_ENCONTRADO", "Checklist não encontrado")
+    if usuario.papel == "OPERADOR" and c.operador_id != usuario.id:
+        raise ErroNegocio(403, "PERMISSAO", "Este checklist é de outro operador")
+    return _detalhe(db, c)

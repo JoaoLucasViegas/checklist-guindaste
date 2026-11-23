@@ -28,19 +28,8 @@ class LoginIn(BaseModel):
 @router.post("/auth/login")
 def login(body: LoginIn, db: Session = Depends(get_db)):
     # Só considera usuários ativos (quem foi desativado não consegue entrar)
-    u = db.scalars(
-        select(Usuario).filter_by(
-            matricula=body.matricula, ativo=True)).first()
-    
-    print("Usuário encontrado:", u is not None)
+    u = db.scalars(select(Usuario).filter_by(matricula=body.matricula, ativo=True)).first()
 
-    if u:
-        print("Usuário ativo:", u.ativo)
-
-        print(
-            "PIN corresponde ao hash:",
-            confere_pin(body.pin, u.pin_hash)
-        )
     # Mesma mensagem para "usuário não existe" e "PIN errado", para não revelar
     # a quem tenta adivinhar quais matrículas estão cadastradas.
     if not u or not confere_pin(body.pin, u.pin_hash):
@@ -50,4 +39,3 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
         "access_token": criar_token(u),
         "usuario": {"id": u.id, "nome": u.nome, "papel": u.papel},
     }
-
