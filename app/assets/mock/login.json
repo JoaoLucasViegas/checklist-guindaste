@@ -1,0 +1,7 @@
+{
+  "token": "mock-token",
+  "usuario": {
+    "matricula": "0017",
+    "nome": "Operador Mock"
+  }
+}
