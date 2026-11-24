@@ -15,8 +15,8 @@ from app.db import get_db
 from app.erros import ErroNegocio
 from app.models import (Checklist, Equipamento, Evento, Local, Resposta, Revisao, Template,
                         TemplateItem, Usuario)
-from app.schemas import ChecklistIn
-from app.security import usuario_atual
+from app.schemas import ChecklistIn, CorrecaoIn
+from app.security import usuario_atual, exige_admin
 from app.services.eventos import CAMPOS, calcular_diff
 from app.services.impedimento import calcular_impedimento
 from app.services.validacao import validar_checklist
@@ -127,6 +127,77 @@ def _aplicar(c: Checklist, dados: dict, impedido: bool) -> None:
 def _resumo(c: Checklist) -> dict:
     return {"id": c.id, "status": c.status, "revisao": c.revisao, "impedido": c.impedido, "editado": c.editado}
 
+def _carregar(db: Session, checklist_id: str) -> Checklist:
+    """Busca um checklist pelo ID ou retorna erro 404."""
+    c = db.get(Checklist, checklist_id)
+
+    if not c:
+        raise ErroNegocio( 404, "NAO_ENCONTRADO", "Checklist não encontrado")
+    return c
+
+@router.post("/checklists/{checklist_id}/vistar")
+def vistar(
+    checklist_id: str,
+    db: Session = Depends(get_db),
+    admin=Depends(exige_admin)
+):
+    """Permite que um administrador realize a vistoria de um checklist."""
+
+    # 1. Buscar o checklist
+    c = _carregar(db, checklist_id)
+
+    # 2. Verificar se está disponível para vistoria
+    if c.status != "ENVIADO":
+        raise ErroNegocio( 409, "ESTADO_INVALIDO", f"Não é possível vistar um checklist em {c.status}")
+
+    # 3. Atualizar os dados da vistoria
+    c.status = "VISTADO"
+    c.vistado_por = admin.id
+    c.vistado_em = datetime.now(timezone.utc)
+
+    # 4. Registrar evento no histórico
+    db.add(Evento(checklist_id=c.id, tipo="VISTADO", usuario_id=admin.id))
+
+    # 5. Salvar alterações
+    db.commit()
+
+    # 6. Retornar resumo
+    return _resumo(c)
+
+@router.post("/checklists/{checklist_id}/solicitar-correcao")
+def solicitar_correcao(
+    checklist_id: str,
+    body: CorrecaoIn,
+    db: Session = Depends(get_db),
+    admin=Depends(exige_admin)
+):
+    """Permite que um administrador solicite correção de um checklist."""
+
+    # 1. Validar o motivo
+    motivo = body.motivo.strip()
+
+    if not motivo:
+        raise ErroNegocio(400, "VALIDACAO", "Informe o motivo da correção")
+
+    # 2. Buscar o checklist
+    c = _carregar(db, checklist_id)
+
+    # 3. Verificar se pode receber solicitação de correção
+    if c.status != "ENVIADO":
+        raise ErroNegocio(409, "ESTADO_INVALIDO", f"Não é possível solicitar correção em {c.status}")
+
+    # 4. Atualizar o status
+    c.status = "CORRECAO_SOLICITADA"
+
+    # 5. Registrar o evento e o motivo
+    db.add(
+        Evento( checklist_id=c.id, tipo="CORRECAO_SOLICITADA", usuario_id=admin.id, detalhe={"motivo": motivo}))
+
+    # 6. Salvar alterações
+    db.commit()
+
+    # 7. Retornar resumo
+    return _resumo(c)
 
 # ---------------------------------------------------------------------------
 # Consultas (GET)

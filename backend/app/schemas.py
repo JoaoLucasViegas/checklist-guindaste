@@ -55,3 +55,8 @@ class ChecklistOut(BaseModel):
     revisao: int
     impedido: bool
     editado: bool
+
+class CorrecaoIn(BaseModel):
+    """Dados enviados pelo administrador ao solicitar correção."""
+
+    motivo: str
