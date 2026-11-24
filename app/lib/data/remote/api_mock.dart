@@ -1,125 +1,63 @@
-import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'api.dart';
+import 'erros.dart';
 
 class ApiMock implements Api {
-  static const String _basePath = 'assets/mock/';
-
-  final Map<String, Map<String, dynamic>> _checklists = {};
-
-  Future<dynamic> _readJson(String filename) async {
-    final content = await rootBundle.loadString('$_basePath$filename');
-    return jsonDecode(content);
-  }
-
-  Future<Map<String, dynamic>> _readMap(String filename) async {
-    final data = await _readJson(filename);
-    return Map<String, dynamic>.from(data);
-  }
-
-  @override
-  Future<Map<String, dynamic>> login(
-    String matricula,
-    String pin,
-  ) async {
-    return _readMap('login.json');
-  }
-
-  @override
-  Future<Map<String, dynamic>> template() async {
-    return _readMap('template.json');
-  }
+  static const _usuarios = {
+    '1001': {
+      'pin': '1234',
+      'id': 'u1',
+      'nome': 'João Silva',
+      'papel': 'OPERADOR',
+    },
+    '1002': {
+      'pin': '1234',
+      'id': 'u2',
+      'nome': 'Maria Souza',
+      'papel': 'OPERADOR',
+    },
+    '9001': {
+      'pin': '0000',
+      'id': 'u9',
+      'nome': 'Administrador',
+      'papel': 'ADMIN',
+    },
+  };
 
   @override
-  Future<Map<String, dynamic>> lookups() async {
-    return _readMap('lookups.json');
-  }
-
-  @override
-  Future<double?> ultimoHorimetro(String equipamentoId) async {
-    final data = await _readJson('ultimo_horimetro.json');
-
-    if (data is num) return data.toDouble();
-
-    if (data is Map) {
-      final value = data['ultimo_horimetro'];
-      return value is num ? value.toDouble() : null;
+  Future<Map<String, dynamic>> login(String matricula, String pin) async {
+    await Future.delayed(const Duration(milliseconds: 400)); // simula a rede
+    final u = _usuarios[matricula];
+    if (u == null || u['pin'] != pin) {
+      throw const ErroApi(
+        'Matrícula ou PIN incorretos',
+      ); // mesma mensagem do servidor
     }
-
-    return null;
+    return {
+      'access_token': 'mock-token-${u['id']}',
+      'usuario': {'id': u['id'], 'nome': u['nome'], 'papel': u['papel']},
+    };
   }
 
+  @override
+  Future<Map<String, dynamic>> template() => throw UnimplementedError();
+  @override
+  Future<Map<String, dynamic>> lookups() => throw UnimplementedError();
+  @override
+  Future<double?> ultimoHorimetro(String equipamentoId) =>
+      throw UnimplementedError();
   @override
   Future<Map<String, dynamic>> enviarChecklist(
     String id,
     Map<String, dynamic> payload,
-  ) async {
-    final result = {
-      'id': id,
-      'status': 'enviado',
-      ...payload,
-    };
-
-    _checklists[id] = result;
-
-    return result;
-  }
-
+  ) => throw UnimplementedError();
   @override
-  Future<Map<String, dynamic>> listarChecklists({
-    String? status,
-  }) async {
-    final data = await _readMap('checklists.json');
-
-    final items = List<Map<String, dynamic>>.from(
-      (data['checklists'] as List? ?? []).map(
-        (item) => Map<String, dynamic>.from(item),
-      ),
-    );
-
-    // Inclui checklists criados durante a execução.
-    for (final item in _checklists.values) {
-      items.removeWhere((e) => e['id'] == item['id']);
-      items.add(item);
-    }
-
-    final filtered = status == null
-        ? items
-        : items.where((item) => item['status'] == status).toList();
-
-    return {
-      ...data,
-      'checklists': filtered,
-    };
-  }
-
+  Future<Map<String, dynamic>> listarChecklists({String? status}) =>
+      throw UnimplementedError();
   @override
-  Future<Map<String, dynamic>> detalhe(String id) async {
-    if (_checklists.containsKey(id)) {
-      return _checklists[id]!;
-    }
-
-    return _readMap('detalhe_$id.json');
-  }
-
+  Future<Map<String, dynamic>> detalhe(String id) => throw UnimplementedError();
   @override
-  Future<void> vistar(String id) async {
-    final item = await detalhe(id);
-
-    item['status'] = 'vistado';
-    _checklists[id] = item;
-  }
-
+  Future<void> vistar(String id) => throw UnimplementedError();
   @override
-  Future<void> solicitarCorrecao(
-    String id,
-    String motivo,
-  ) async {
-    final item = await detalhe(id);
-
-    item['status'] = 'correcao_solicitada';
-    item['motivo_correcao'] = motivo;
-
-    _checklists[id] = item;
-  }
+  Future<void> solicitarCorrecao(String id, String motivo) =>
+      throw UnimplementedError();
 }
