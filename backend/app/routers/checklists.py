@@ -244,19 +244,48 @@ def _detalhe(db, c: Checklist) -> dict:
     """Checklist completo: o resumo da lista + os mesmos campos do corpo do PUT."""
     itens = {i.numero: i for i in db.query(TemplateItem).filter_by(template_id=c.template_id)}
     vistador = db.get(Usuario, c.vistado_por) if c.vistado_por else None
+    eventos = (
+        db.query(Evento)
+        .filter(Evento.checklist_id == c.id)
+        .order_by(Evento.criado_em.asc())
+        .all()
+    )
+
+    historico = []
+
+    for evento in eventos:
+        usuario_evento = db.get(Usuario, evento.usuario_id)
+
+        historico.append({
+            "tipo": evento.tipo,
+            "usuario": usuario_evento.nome if usuario_evento else None,
+            "detalhe": evento.detalhe,
+            "criado_em": evento.criado_em.isoformat() if evento.criado_em else None
+        })
+
     return {**_resumo_lista(db, c),
-            "template_id": c.template_id, "equipamento_id": c.equipamento_id, "local_id": c.local_id,
-            "data_turno": c.data_turno, "turno": c.turno, "navio": c.navio,
-            "horimetro_inicial": c.horimetro_inicial, "horimetro_final": c.horimetro_final,
+            "template_id": c.template_id, 
+            "equipamento_id": c.equipamento_id, 
+            "local_id": c.local_id,
+            "data_turno": c.data_turno, 
+            "turno": c.turno, "navio": c.navio,
+            "eventos": historico,
+            "horimetro_inicial": c.horimetro_inicial, 
+            "horimetro_final": c.horimetro_final,
             "combustivel_pct": c.combustivel_pct,
-            "hora_entrada": c.hora_entrada, "hora_saida": c.hora_saida,
-            "observacao_geral": c.observacao_geral, "assinatura_operador": c.assinatura_operador,
-            "usou_lote": c.usou_lote, "itens_marcados_lote": c.itens_marcados_lote,
+            "hora_entrada": c.hora_entrada,
+            "hora_saida": c.hora_saida,
+            "observacao_geral": c.observacao_geral, 
+            "assinatura_operador": c.assinatura_operador,
+            "usou_lote": c.usou_lote, 
+            "itens_marcados_lote": c.itens_marcados_lote,
             "itens_alterados_apos_lote": c.itens_alterados_apos_lote,
-            "inicio_preenchimento_em": c.inicio_preenchimento_em, "finalizado_em": c.finalizado_em,
+            "inicio_preenchimento_em": c.inicio_preenchimento_em, 
+            "finalizado_em": c.finalizado_em,
             "duracao_segundos": c.duracao_segundos,
             "confirmacao_correcao": False,          # só faz sentido no PUT; aqui é sempre false
-            "criado_no_dispositivo_em": c.criado_no_dispositivo_em, "app_versao": c.app_versao,
+            "criado_no_dispositivo_em": c.criado_no_dispositivo_em, 
+            "app_versao": c.app_versao,
             "vistado": ({"por": {"id": vistador.id, "nome": vistador.nome},
                          "em": c.vistado_em.isoformat() if c.vistado_em else None}
                         if vistador else None),
@@ -265,6 +294,7 @@ def _detalhe(db, c: Checklist) -> dict:
                            "critico": itens[r.item_numero].critico if r.item_numero in itens else None,
                            "resposta": r.resposta, "origem": r.origem, "observacao": r.observacao}
                           for r in c.respostas]}
+
 
 
 @router.get("/checklists/{checklist_id}")
