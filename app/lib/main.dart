@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 import 'core/config.dart';
@@ -38,7 +38,7 @@ class App extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
       home: Consumer<Sessao>(
-        builder: (_, s, __) {
+        builder: (_, s, _) {
           if (!s.logado) return const LoginPage();
           return s.ehAdmin ? const HomeAdminPage() : const HomeOperadorPage();
         },

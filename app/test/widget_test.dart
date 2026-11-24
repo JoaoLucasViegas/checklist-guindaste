@@ -2,7 +2,7 @@ import 'package:checklist_guindaste/data/remote/api.dart';
 import 'package:checklist_guindaste/data/remote/api_mock.dart';
 import 'package:checklist_guindaste/features/auth/login_page.dart';
 import 'package:checklist_guindaste/features/auth/sessao.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
