@@ -32,9 +32,19 @@ class ApiReal implements Api {
   // Demais métodos: copiar o padrão (usando options: _op) nas tarefas FE-03 em diante.
   // Até lá, deixe-os lançando UnimplementedError, como no ApiMock.
   @override
-  Future<Map<String, dynamic>> template() => throw UnimplementedError();
   @override
-  Future<Map<String, dynamic>> lookups() => throw UnimplementedError();
+  Future<Map<String, dynamic>> template() async {
+    final r = await _dio.get('/template', options: _op);
+    return Map<String, dynamic>.from(r.data);
+  }
+
+  @override
+  @override
+  Future<Map<String, dynamic>> lookups() async {
+    final r = await _dio.get('/lookups', options: _op);
+    return Map<String, dynamic>.from(r.data);
+  }
+
   @override
   Future<double?> ultimoHorimetro(String equipamentoId) =>
       throw UnimplementedError();
