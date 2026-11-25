@@ -10,6 +10,12 @@ class Settings:
     # Pasta dos seeds: local = ../dados/seed ; no Docker = /dados/seed
     SEED_DIR: str = os.getenv("SEED_DIR", "../dados/seed")
     CORS_ORIGENS: str = os.getenv("CORS_ORIGENS", "*")
+    JWT_SECRET: str = os.getenv(
+        "JWT_SECRET",
+        "troque-esta-chave-na-demo"
+    )
+
+    JWT_EXPIRA_HORAS = 12
 
 
 settings = Settings()

@@ -1,6 +1,6 @@
 {
   "codigo": "FOR-OPP-0017",
-  "versao": 5,
+  "versao": 6,
   "data_versao": "2025-10-23",
   "titulo": "Check-List Diário de Guindaste",
   "aviso": "Campo 'critico' é PROVISÓRIO (exemplo). Validar com o cliente quais itens estão em negrito no papel.",
@@ -15,14 +15,14 @@
     {
       "numero": 2,
       "descricao": "Botões de controle, funcionando?",
-      "critico": false,
+      "critico": true,
       "reescrito_do_papel": false,
       "permite_na": true
     },
     {
       "numero": 3,
       "descricao": "Sistema de comunicação (rádio e megafone), OK?",
-      "critico": false,
+      "critico": true,
       "reescrito_do_papel": false,
       "permite_na": true
     },
@@ -36,7 +36,7 @@
     {
       "numero": 5,
       "descricao": "Buzina funciona normalmente?",
-      "critico": false,
+      "critico": true,
       "reescrito_do_papel": false,
       "permite_na": true
     },
@@ -64,14 +64,14 @@
     {
       "numero": 9,
       "descricao": "Limpador de para-brisa funcionando?",
-      "critico": false,
+      "critico": true,
       "reescrito_do_papel": false,
       "permite_na": true
     },
     {
       "numero": 10,
       "descricao": "Inspeção visual (patolas, pneus e vazamentos), OK?",
-      "critico": true,
+      "critico": false,
       "reescrito_do_papel": false,
       "permite_na": true
     },
@@ -113,21 +113,21 @@
     {
       "numero": 16,
       "descricao": "Nível de óleo hidráulico, OK?",
-      "critico": true,
+      "critico": false,
       "reescrito_do_papel": false,
       "permite_na": true
     },
     {
       "numero": 17,
       "descricao": "Sistema hidráulico SEM vazamentos de óleo?",
-      "critico": true,
+      "critico": false,
       "reescrito_do_papel": true,
       "permite_na": true
     },
     {
       "numero": 18,
       "descricao": "Funcionamento do grab, cabos de aço?",
-      "critico": true,
+      "critico": false,
       "reescrito_do_papel": false,
       "permite_na": true
     },
@@ -141,21 +141,21 @@
     {
       "numero": 20,
       "descricao": "Extintor de incêndio com data de validade vigente?",
-      "critico": true,
+      "critico": false,
       "reescrito_do_papel": false,
       "permite_na": true
     },
     {
       "numero": 21,
       "descricao": "Extintor pressurizado? Está em suporte adequado?",
-      "critico": true,
+      "critico": false,
       "reescrito_do_papel": false,
       "permite_na": true
     },
     {
       "numero": 22,
       "descricao": "Pneus em boas condições?",
-      "critico": true,
+      "critico": false,
       "reescrito_do_papel": false,
       "permite_na": true
     },
