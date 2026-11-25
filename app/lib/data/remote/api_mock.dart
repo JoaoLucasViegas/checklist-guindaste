@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 
 class ApiMock implements Api {
+  static final Map<String, Map<String, dynamic>> _checklists = {};
+
   static const _usuarios = {
     '1001': {
       'pin': '1234',
@@ -71,13 +73,46 @@ class ApiMock implements Api {
   }
 
   @override
-  Future<double?> ultimoHorimetro(String equipamentoId) =>
-      throw UnimplementedError();
+  Future<double?> ultimoHorimetro(String equipamentoId) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    final texto = await rootBundle.loadString(
+      'assets/mock/ultimo_horimetro.json',
+    );
+    final json = jsonDecode(texto) as Map<String, dynamic>;
+    final valor = json['ultimo_horimetro'];
+    return valor == null ? null : (valor as num).toDouble();
+  }
+
   @override
   Future<Map<String, dynamic>> enviarChecklist(
     String id,
     Map<String, dynamic> payload,
-  ) => throw UnimplementedError();
+  ) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+    final templateJson = jsonDecode(
+      await rootBundle.loadString('assets/mock/template.json'),
+    ) as Map<String, dynamic>;
+    final criticos = {
+      for (final item in templateJson['itens'] as List)
+        if ((item as Map)['critico'] == true) item['numero'] as int,
+    };
+    final respostas = payload['respostas'] as List;
+    final impedido = respostas.any(
+      (item) =>
+          criticos.contains((item as Map)['item_numero']) &&
+          item['resposta'] == 'N',
+    );
+    final resposta = {
+      'id': id,
+      'status': 'ENVIADO',
+      'revisao': _checklists.containsKey(id) ? 2 : 1,
+      'impedido': impedido,
+      'editado': _checklists.containsKey(id),
+    };
+    _checklists[id] = {...payload, ...resposta};
+    return resposta;
+  }
+
   @override
   Future<Map<String, dynamic>> listarChecklists({String? status}) =>
       throw UnimplementedError();
