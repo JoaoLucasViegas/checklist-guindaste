@@ -9,6 +9,8 @@ import 'features/auth/login_page.dart';
 import 'features/auth/sessao.dart';
 import 'features/home/home_admin_page.dart';
 import 'features/home/home_operador_page.dart';
+import 'data/repositories/catalogo_repository.dart';
+import 'features/catalogo/catalogo_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +24,9 @@ Future<void> main() async {
       providers: [
         Provider<Api>.value(value: api),
         ChangeNotifierProvider<Sessao>.value(value: sessao),
+        ChangeNotifierProvider<CatalogoController>(
+          create: (_) => CatalogoController(CatalogoRepository(api)),
+        ),
       ],
       child: const App(),
     ),

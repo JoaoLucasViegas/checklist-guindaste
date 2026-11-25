@@ -1,6 +1,10 @@
 import 'api.dart';
 import 'erros.dart';
 
+import 'dart:convert';
+
+import 'package:flutter/services.dart' show rootBundle;
+
 class ApiMock implements Api {
   static const _usuarios = {
     '1001': {
@@ -39,9 +43,33 @@ class ApiMock implements Api {
   }
 
   @override
-  Future<Map<String, dynamic>> template() => throw UnimplementedError();
+  Future<Map<String, dynamic>> template() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    final texto = await rootBundle.loadString('assets/mock/template.json');
+    final m = jsonDecode(texto) as Map<String, dynamic>;
+    return {
+      ...m,
+      'id': 'mock-template-1',
+    }; // o servidor real devolve o id do template
+  }
+
   @override
-  Future<Map<String, dynamic>> lookups() => throw UnimplementedError();
+  Future<Map<String, dynamic>> lookups() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return {
+      'locais': [
+        {'id': 'mock-local-99', 'nome': 'Cais 99'},
+        {'id': 'mock-local-100', 'nome': 'Cais 100'},
+      ],
+      'equipamentos': [
+        {'id': 'mock-eq-280', 'identificacao': 'GUINDASTE-280'},
+        {'id': 'mock-eq-281', 'identificacao': 'GUINDASTE-281'},
+        {'id': 'mock-eq-282', 'identificacao': 'GUINDASTE-282'},
+      ],
+      'turnos': ['T_08_14', 'T_14_20', 'T_20_02', 'T_02_08'],
+    };
+  }
+
   @override
   Future<double?> ultimoHorimetro(String equipamentoId) =>
       throw UnimplementedError();
