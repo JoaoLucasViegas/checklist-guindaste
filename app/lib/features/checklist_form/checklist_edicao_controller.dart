@@ -12,6 +12,8 @@ class ChecklistEdicaoController extends ChangeNotifier {
   final Api _api;
   final Catalogo catalogo;
   final String usuarioId;
+  final bool modoEdicao;
+  final bool emCorrecaoSolicitada;
   late DateTime inicioPreenchimento;
   late DateTime criadoNoDispositivo;
 
@@ -28,6 +30,7 @@ class ChecklistEdicaoController extends ChangeNotifier {
   String horaEntrada;
   String horaSaida = '';
   String observacaoGeral = '';
+  String? assinaturaExistente;
   double? sugestaoHorimetro;
   bool carregando = true;
   bool buscandoHorimetro = false;
@@ -51,6 +54,8 @@ class ChecklistEdicaoController extends ChangeNotifier {
     required this.catalogo,
     required this.usuarioId,
     String? rascunhoId,
+    this.modoEdicao = false,
+    this.emCorrecaoSolicitada = false,
   }) : turno = turnoSugerido(DateTime.now()),
        dataTurno = DateTime.now(),
        horaEntrada = horaAtual(DateTime.now()) {
@@ -85,11 +90,14 @@ class ChecklistEdicaoController extends ChangeNotifier {
       final salvo = await BancoLocal.lerChecklist(id);
       if (salvo != null) {
         _restaurar(salvo['json'] as Map<String, dynamic>);
+      } else if (modoEdicao) {
+        final remoto = await _api.detalhe(id);
+        _restaurar(remoto);
       } else {
         _agendarSalvamento();
       }
     } catch (e) {
-      erro = 'Não foi possível abrir o rascunho: ${mensagemDeErro(e)}';
+      erro = 'Não foi possível abrir o checklist: ${mensagemDeErro(e)}';
     } finally {
       carregando = false;
       _notificar();
@@ -111,21 +119,28 @@ class ChecklistEdicaoController extends ChangeNotifier {
     navio = json['navio'] as String? ?? '';
     horimetroInicial = json['horimetro_inicial']?.toString() ?? '';
     horimetroFinal = json['horimetro_final']?.toString() ?? '';
-    combustivelPct = json['combustivel_pct'] as int? ?? combustivelPct;
+    combustivelPct =
+        (json['combustivel_pct'] as num?)?.toInt() ?? combustivelPct;
     horaEntrada = json['hora_entrada'] as String? ?? horaEntrada;
     horaSaida = json['hora_saida'] as String? ?? '';
     observacaoGeral = json['observacao_geral'] as String? ?? '';
+    assinaturaExistente =
+        (json['assinatura_operador'] ??
+                json['assinatura_base64'] ??
+                json['assinatura'])
+            as String?;
     usouLote = json['usou_lote'] as bool? ?? false;
-    itensMarcadosLote = json['itens_marcados_lote'] as int? ?? 0;
-    itensAlteradosAposLote = json['itens_alterados_apos_lote'] as int? ?? 0;
+    itensMarcadosLote = (json['itens_marcados_lote'] as num?)?.toInt() ?? 0;
+    itensAlteradosAposLote =
+        (json['itens_alterados_apos_lote'] as num?)?.toInt() ?? 0;
     _alertaImpedimentoMostrado =
         json['alerta_impedimento_mostrado'] as bool? ?? false;
 
-    final respostasSalvas = json['respostas'];
+    final respostasSalvas = json['respostas'] ?? json['itens'];
     if (respostasSalvas is List) {
       for (final item in respostasSalvas) {
         if (item is! Map) continue;
-        final numero = item['item_numero'];
+        final numero = item['item_numero'] ?? item['numero'];
         final resposta = respostas.where((r) => r.numero == numero);
         if (resposta.isEmpty) continue;
         resposta.first
@@ -149,6 +164,7 @@ class ChecklistEdicaoController extends ChangeNotifier {
     'hora_entrada': horaEntrada,
     'hora_saida': horaSaida,
     'observacao_geral': observacaoGeral,
+    if (assinaturaExistente != null) 'assinatura_operador': assinaturaExistente,
     'usou_lote': usouLote,
     'itens_marcados_lote': itensMarcadosLote,
     'itens_alterados_apos_lote': itensAlteradosAposLote,
@@ -167,7 +183,7 @@ class ChecklistEdicaoController extends ChangeNotifier {
   };
 
   void _agendarSalvamento() {
-    if (finalizado) return;
+    if (finalizado || modoEdicao) return;
     final snapshot = _rascunhoJson();
     _filaSalvamento = _filaSalvamento.then((_) async {
       try {
@@ -451,7 +467,7 @@ class ChecklistEdicaoController extends ChangeNotifier {
       'duracao_segundos': finalizadoEm
           .difference(inicioPreenchimento)
           .inSeconds,
-      'confirmacao_correcao': false,
+      'confirmacao_correcao': emCorrecaoSolicitada,
       'criado_no_dispositivo_em': criadoNoDispositivo.toUtc().toIso8601String(),
       'app_versao': '0.1.0',
       'respostas': [
@@ -467,7 +483,15 @@ class ChecklistEdicaoController extends ChangeNotifier {
   }
 
   Future<bool> finalizar(String assinaturaBase64) async {
-    errosValidacao = _validarEnvio(assinaturaBase64);
+    final assinaturaFinal = assinaturaBase64.isNotEmpty
+        ? assinaturaBase64
+        : (modoEdicao &&
+                  assinaturaExistente != null &&
+                  assinaturaExistente!.isNotEmpty
+              ? assinaturaExistente!
+              : '');
+
+    errosValidacao = _validarEnvio(assinaturaFinal);
     if (errosValidacao.isNotEmpty) {
       erro = errosValidacao.first;
       _notificar();
@@ -479,7 +503,7 @@ class ChecklistEdicaoController extends ChangeNotifier {
     _notificar();
     try {
       await _filaSalvamento;
-      final payload = _payload(DateTime.now(), assinaturaBase64);
+      final payload = _payload(DateTime.now(), assinaturaFinal);
       await BancoLocal.salvarChecklist(
         id: id,
         usuarioId: usuarioId,

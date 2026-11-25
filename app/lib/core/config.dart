@@ -8,7 +8,7 @@ class Config {
     'API_URL',
     defaultValue: 'http://10.0.2.2:8000/api/v1',
   );
-  static const usarMock = bool.fromEnvironment('MOCK', defaultValue: false);
+  static const usarMock = bool.fromEnvironment('MOCK', defaultValue: true);
   static const atalhosDemo = bool.fromEnvironment(
     'ATALHOS_DEMO',
     defaultValue: true,
