@@ -38,12 +38,18 @@ features/admin      lista, detalhe completo, vistar, solicitar correção
 sync/               fila offline e reenvio
 ```
 
-## Fluxo do operador (FE-04–FE-06)
+## Fluxo do operador (FE-04–FE-10)
 O cabeçalho e as respostas são salvos como `RASCUNHO` no SQLite local a cada alteração.
 Rascunhos do operador aparecem na home e podem ser retomados após fechar e reabrir o app.
-O envio online monta o corpo completo do contrato e marca o registro como `SINCRONIZADO`
-após o `PUT /checklists/{id}` responder com sucesso. O horímetro final, a hora de saída
-e a assinatura continuam opcionais nesta etapa; assinatura e finalização pertencem à FE-09.
+O operador pode marcar os itens ainda sem resposta como OK após confirmação; itens alterados
+depois disso passam a ter origem manual, mantendo os metadados do lote.
+
+A finalização exige horímetro final válido, hora de saída e assinatura. Ela grava o payload
+completo em `PENDENTE_ENVIO` antes de tentar a API. A fila envia em ordem e muda para
+`SINCRONIZADO` após sucesso; falhas de conexão permanecem pendentes para retentativa
+quando a rede voltar, ao abrir a home e a cada 30 segundos. Erros de validação ficam
+visíveis na home como `ERRO_VALIDACAO`. A sincronização em segundo plano depende do app
+estar aberto; após reabri-lo, a fila é retomada.
 
 ## Regras
 - **URL do servidor configurável** (tela de configurações ou `--dart-define=API_URL=...`). Sem recompilar para trocar.

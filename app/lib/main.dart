@@ -11,6 +11,7 @@ import 'features/home/home_admin_page.dart';
 import 'features/home/home_operador_page.dart';
 import 'data/repositories/catalogo_repository.dart';
 import 'features/catalogo/catalogo_controller.dart';
+import 'sync/sincronizador.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +27,13 @@ Future<void> main() async {
         ChangeNotifierProvider<Sessao>.value(value: sessao),
         ChangeNotifierProvider<CatalogoController>(
           create: (_) => CatalogoController(CatalogoRepository(api)),
+        ),
+        ChangeNotifierProvider<Sincronizador>(
+          create: (_) => Sincronizador(
+            api,
+            lerUsuarioId: () => sessao.usuarioId,
+            aoExpirarSessao: sessao.sair,
+          ),
         ),
       ],
       child: const App(),

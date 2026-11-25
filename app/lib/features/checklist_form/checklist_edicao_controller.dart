@@ -6,7 +6,7 @@ import '../../data/remote/api.dart';
 import '../../data/remote/erros.dart';
 import '../../domain/catalogo.dart';
 import '../../domain/modelos.dart';
-import '../../domain/regras.dart' show responderManual;
+import '../../domain/regras.dart' as regras;
 
 class ChecklistEdicaoController extends ChangeNotifier {
   final Api _api;
@@ -32,7 +32,11 @@ class ChecklistEdicaoController extends ChangeNotifier {
   bool carregando = true;
   bool buscandoHorimetro = false;
   bool enviando = false;
-  bool sincronizado = false;
+  bool finalizado = false;
+  bool usouLote = false;
+  int itensMarcadosLote = 0;
+  int itensAlteradosAposLote = 0;
+  bool _alertaImpedimentoMostrado = false;
   Map<String, dynamic>? resultadoEnvio;
   String? erro;
   String? erroPersistencia;
@@ -111,6 +115,11 @@ class ChecklistEdicaoController extends ChangeNotifier {
     horaEntrada = json['hora_entrada'] as String? ?? horaEntrada;
     horaSaida = json['hora_saida'] as String? ?? '';
     observacaoGeral = json['observacao_geral'] as String? ?? '';
+    usouLote = json['usou_lote'] as bool? ?? false;
+    itensMarcadosLote = json['itens_marcados_lote'] as int? ?? 0;
+    itensAlteradosAposLote = json['itens_alterados_apos_lote'] as int? ?? 0;
+    _alertaImpedimentoMostrado =
+        json['alerta_impedimento_mostrado'] as bool? ?? false;
 
     final respostasSalvas = json['respostas'];
     if (respostasSalvas is List) {
@@ -140,6 +149,10 @@ class ChecklistEdicaoController extends ChangeNotifier {
     'hora_entrada': horaEntrada,
     'hora_saida': horaSaida,
     'observacao_geral': observacaoGeral,
+    'usou_lote': usouLote,
+    'itens_marcados_lote': itensMarcadosLote,
+    'itens_alterados_apos_lote': itensAlteradosAposLote,
+    'alerta_impedimento_mostrado': _alertaImpedimentoMostrado,
     'inicio_preenchimento_em': inicioPreenchimento.toUtc().toIso8601String(),
     'criado_no_dispositivo_em': criadoNoDispositivo.toUtc().toIso8601String(),
     'respostas': [
@@ -154,7 +167,7 @@ class ChecklistEdicaoController extends ChangeNotifier {
   };
 
   void _agendarSalvamento() {
-    if (sincronizado) return;
+    if (finalizado) return;
     final snapshot = _rascunhoJson();
     _filaSalvamento = _filaSalvamento.then((_) async {
       try {
@@ -287,18 +300,53 @@ class ChecklistEdicaoController extends ChangeNotifier {
 
   void responder(int numero, String valor) {
     final resposta = respostas.firstWhere((r) => r.numero == numero);
-    responderManual(
+    final marcadaEmLote = resposta.origem == 'LOTE';
+    regras.responderManual(
       resposta,
       valor,
       observacao: valor == 'N' ? resposta.observacao : null,
     );
+    if (marcadaEmLote) itensAlteradosAposLote++;
     _alterado();
   }
 
   void definirObservacao(int numero, String valor) {
     final resposta = respostas.firstWhere((r) => r.numero == numero);
-    responderManual(resposta, 'N', observacao: valor);
+    regras.responderManual(resposta, 'N', observacao: valor);
     _alterado();
+  }
+
+  int get respondidos =>
+      respostas.where((resposta) => resposta.resposta != null).length;
+
+  ResumoChecklist get resumo => regras.resumir(respostas);
+
+  List<int> get itensCriticosComProblema =>
+      regras.criticosComProblema(respostas, catalogo.itens);
+
+  bool get impedido => itensCriticosComProblema.isNotEmpty;
+
+  int marcarTudoOk() {
+    final quantidade = regras.marcarTudoOk(respostas, catalogo.itens);
+    if (quantidade == 0) return 0;
+    usouLote = true;
+    itensMarcadosLote += quantidade;
+    _alterado();
+    return quantidade;
+  }
+
+  bool registrarAlertaImpedimentoExibido() {
+    if (!impedido || _alertaImpedimentoMostrado) return false;
+    _alertaImpedimentoMostrado = true;
+    _agendarSalvamento();
+    return true;
+  }
+
+  void prepararFinalizacao() {
+    if (horaSaida.isEmpty) {
+      horaSaida = horaAtual(DateTime.now());
+      _alterado();
+    }
   }
 
   List<String> _errosCabecalho() {
@@ -336,17 +384,15 @@ class ChecklistEdicaoController extends ChangeNotifier {
     return erros.isEmpty;
   }
 
-  List<String> _validarEnvio() {
-    final erros = <String>[];
-    if (!validarCabecalho()) erros.addAll(errosValidacao);
-    for (final resposta in respostas) {
-      if (resposta.resposta == null) {
-        erros.add('Item ${resposta.numero} sem resposta.');
-      } else if (resposta.resposta == 'N' &&
-          (resposta.observacao == null ||
-              resposta.observacao!.trim().isEmpty)) {
-        erros.add('Item ${resposta.numero} precisa de observação.');
-      }
+  List<String> _validarEnvio(String assinaturaBase64) {
+    final inicial = parseHorimetro(horimetroInicial);
+    final finalValue = parseHorimetro(horimetroFinal);
+    final erros = <String>[..._errosCabecalho()];
+
+    if (horimetroFinal.trim().isEmpty || finalValue == null) {
+      erros.add(
+        'Informe um horímetro final válido, com no máximo 1 casa decimal.',
+      );
     }
     if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(_dataIso(dataTurno))) {
       erros.add('Informe uma data válida.');
@@ -354,14 +400,29 @@ class ChecklistEdicaoController extends ChangeNotifier {
     if (!RegExp(r'^([01]\d|2[0-3]):[0-5]\d$').hasMatch(horaEntrada)) {
       erros.add('Informe uma hora de entrada válida.');
     }
-    if (horaSaida.trim().isNotEmpty &&
-        !RegExp(r'^([01]\d|2[0-3]):[0-5]\d$').hasMatch(horaSaida)) {
+    if (!RegExp(r'^([01]\d|2[0-3]):[0-5]\d$').hasMatch(horaSaida)) {
       erros.add('Informe uma hora de saída válida.');
     }
-    return erros;
+    erros.addAll(
+      regras.validarParaEnviar(
+        respostas: respostas,
+        itens: catalogo.itens,
+        horimetroInicial: inicial ?? 0,
+        horimetroFinal: finalValue ?? inicial ?? 0,
+        combustivelPct: combustivelPct,
+        turno: turno,
+        horaEntrada: horaEntrada,
+        horaSaida: horaSaida,
+        assinaturaBase64: assinaturaBase64,
+      ),
+    );
+    return erros.toSet().toList();
   }
 
-  Map<String, dynamic> _payload(DateTime finalizadoEm) {
+  Map<String, dynamic> _payload(
+    DateTime finalizadoEm,
+    String assinaturaBase64,
+  ) {
     final inicial = parseHorimetro(horimetroInicial)!;
     final finalValue = horimetroFinal.trim().isEmpty
         ? null
@@ -381,10 +442,10 @@ class ChecklistEdicaoController extends ChangeNotifier {
       'observacao_geral': observacaoGeral.trim().isEmpty
           ? null
           : observacaoGeral.trim(),
-      'assinatura_operador': null,
-      'usou_lote': respostas.any((r) => r.origem == 'LOTE'),
-      'itens_marcados_lote': respostas.where((r) => r.origem == 'LOTE').length,
-      'itens_alterados_apos_lote': 0,
+      'assinatura_operador': assinaturaBase64,
+      'usou_lote': usouLote,
+      'itens_marcados_lote': itensMarcadosLote,
+      'itens_alterados_apos_lote': itensAlteradosAposLote,
       'inicio_preenchimento_em': inicioPreenchimento.toUtc().toIso8601String(),
       'finalizado_em': finalizadoEm.toUtc().toIso8601String(),
       'duracao_segundos': finalizadoEm
@@ -405,8 +466,8 @@ class ChecklistEdicaoController extends ChangeNotifier {
     };
   }
 
-  Future<bool> enviar() async {
-    errosValidacao = _validarEnvio();
+  Future<bool> finalizar(String assinaturaBase64) async {
+    errosValidacao = _validarEnvio(assinaturaBase64);
     if (errosValidacao.isNotEmpty) {
       erro = errosValidacao.first;
       _notificar();
@@ -418,15 +479,14 @@ class ChecklistEdicaoController extends ChangeNotifier {
     _notificar();
     try {
       await _filaSalvamento;
-      final payload = _payload(DateTime.now());
-      resultadoEnvio = await _api.enviarChecklist(id, payload);
+      final payload = _payload(DateTime.now(), assinaturaBase64);
       await BancoLocal.salvarChecklist(
         id: id,
         usuarioId: usuarioId,
         json: payload,
-        status: 'SINCRONIZADO',
+        status: 'PENDENTE_ENVIO',
       );
-      sincronizado = true;
+      finalizado = true;
       erroPersistencia = null;
       return true;
     } catch (e) {

@@ -2,7 +2,9 @@
 
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+
 import '../auth/sessao.dart';
+import '../auth/confirmar_saida.dart';
 
 class HomeAdminPage extends StatelessWidget {
   const HomeAdminPage({super.key});
@@ -16,7 +18,7 @@ class HomeAdminPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sair',
-            onPressed: s.sair,
+            onPressed: () => confirmarSaida(context, s),
           ),
         ],
       ),

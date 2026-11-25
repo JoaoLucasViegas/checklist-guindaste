@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../data/local/banco_local.dart';
 import '../../domain/catalogo.dart';
+import '../../sync/sincronizador.dart';
+import '../auth/confirmar_saida.dart';
 import '../auth/sessao.dart';
 import '../catalogo/catalogo_controller.dart';
 import '../checklist_form/checklist_form_page.dart';
@@ -16,15 +18,24 @@ class HomeOperadorPage extends StatefulWidget {
 
 class _HomeOperadorPageState extends State<HomeOperadorPage> {
   List<Map<String, dynamic>> _rascunhos = [];
+  List<Map<String, dynamic>> _filaEnvio = [];
   bool _carregandoRascunhos = true;
   String? _erroRascunhos;
+  late final Sincronizador _sincronizador;
 
   @override
   void initState() {
     super.initState();
     // Cobre os dois casos: logo após o login e a cada abertura do app já logado.
     context.read<CatalogoController>().iniciar();
+    _sincronizador = context.read<Sincronizador>()
+      ..addListener(_sincronizacaoAlterada);
+    _sincronizador.iniciar();
     _carregarRascunhos();
+  }
+
+  void _sincronizacaoAlterada() {
+    if (mounted) _carregarRascunhos();
   }
 
   Future<void> _carregarRascunhos() async {
@@ -35,12 +46,28 @@ class _HomeOperadorPageState extends State<HomeOperadorPage> {
       _erroRascunhos = null;
     });
     try {
-      final rascunhos = await BancoLocal.listarChecklists(
-        status: 'RASCUNHO',
+      final checklists = await BancoLocal.listarChecklists(
         usuarioId: usuarioId,
       );
       if (!mounted) return;
-      setState(() => _rascunhos = rascunhos.reversed.toList());
+      setState(() {
+        _rascunhos = checklists
+            .where((linha) => linha['status'] == 'RASCUNHO')
+            .toList()
+            .reversed
+            .toList();
+        _filaEnvio = checklists
+            .where(
+              (linha) => {
+                'PENDENTE_ENVIO',
+                'ERRO_VALIDACAO',
+                'SINCRONIZADO',
+              }.contains(linha['status']),
+            )
+            .toList()
+            .reversed
+            .toList();
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _erroRascunhos = 'Falha ao carregar rascunhos: $e');
@@ -69,10 +96,28 @@ class _HomeOperadorPageState extends State<HomeOperadorPage> {
     return data.split('-').reversed.join('/');
   }
 
+  String _statusChecklist(Map<String, dynamic> checklist) {
+    final status = checklist['status'] as String;
+    return switch (status) {
+      'PENDENTE_ENVIO' => 'Pendente de envio',
+      'ERRO_VALIDACAO' =>
+        'Erro: ${checklist['ultimo_erro'] ?? 'revise os dados'}',
+      'SINCRONIZADO' => 'Enviado',
+      _ => status,
+    };
+  }
+
+  @override
+  void dispose() {
+    _sincronizador.removeListener(_sincronizacaoAlterada);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessao = context.watch<Sessao>();
     final cat = context.watch<CatalogoController>();
+    final sincronizador = context.watch<Sincronizador>();
     final c = cat.catalogo;
     return Scaffold(
       appBar: AppBar(
@@ -81,7 +126,7 @@ class _HomeOperadorPageState extends State<HomeOperadorPage> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sair',
-            onPressed: sessao.sair,
+            onPressed: () => confirmarSaida(context, sessao),
           ),
         ],
       ),
@@ -92,6 +137,42 @@ class _HomeOperadorPageState extends State<HomeOperadorPage> {
             'Olá, ${sessao.nome}',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
+          const SizedBox(height: 16),
+          Card(
+            child: ListTile(
+              leading: Icon(
+                sincronizador.redeDisponivel ? Icons.wifi : Icons.wifi_off,
+              ),
+              title: Text(
+                sincronizador.redeDisponivel ? 'Online' : 'Sem internet',
+              ),
+              subtitle: Text(
+                '${sincronizador.pendentes} pendente(s) de envio · '
+                '${sincronizador.errosValidacao} com erro',
+              ),
+              trailing: IconButton(
+                tooltip: 'Sincronizar agora',
+                onPressed: sincronizador.sincronizando
+                    ? null
+                    : sincronizador.sincronizar,
+                icon: sincronizador.sincronizando
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync),
+              ),
+            ),
+          ),
+          if (sincronizador.erro != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                sincronizador.erro!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
           const SizedBox(height: 16),
           Card(
             child: ListTile(
@@ -166,6 +247,29 @@ class _HomeOperadorPageState extends State<HomeOperadorPage> {
                           c,
                           rascunhoId: rascunho['id'] as String,
                         ),
+                ),
+              ),
+          const SizedBox(height: 24),
+          Text(
+            'Checklists e status',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          if (_filaEnvio.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('Nenhum checklist finalizado neste aparelho.'),
+            )
+          else
+            for (final checklist in _filaEnvio)
+              Card(
+                child: ListTile(
+                  leading: Icon(
+                    checklist['status'] == 'ERRO_VALIDACAO'
+                        ? Icons.error_outline
+                        : Icons.cloud_upload_outlined,
+                  ),
+                  title: Text('Checklist · ${_dataRascunho(checklist)}'),
+                  subtitle: Text(_statusChecklist(checklist)),
                 ),
               ),
         ],

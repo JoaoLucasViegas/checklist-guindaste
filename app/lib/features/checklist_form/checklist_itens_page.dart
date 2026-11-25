@@ -2,63 +2,104 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../domain/modelos.dart';
 import 'checklist_edicao_controller.dart';
+import 'checklist_finalizacao_page.dart';
 
 class ChecklistItensPage extends StatelessWidget {
   final ChecklistEdicaoController controller;
   const ChecklistItensPage({super.key, required this.controller});
 
-  Future<void> _enviar(BuildContext context) async {
-    final enviado = await controller.enviar();
-    if (!context.mounted) return;
-    if (enviado) {
-      final impedido = controller.resultadoEnvio?['impedido'] == true;
-      final mensagem = impedido
-          ? 'Checklist enviado. Equipamento impedido de operar.'
-          : 'Checklist enviado com sucesso.';
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.of(context).popUntil((route) => route.isFirst);
-      messenger.showSnackBar(SnackBar(content: Text(mensagem)));
-      return;
-    }
-
-    if (controller.errosValidacao.isNotEmpty) {
-      messengerError(context, controller.errosValidacao);
-    }
+  Future<void> _confirmarMarcarTudoOk(BuildContext context) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Marcar tudo OK?'),
+        content: const Text(
+          'Confirmo que inspecionei o equipamento e que todos os itens abaixo '
+          'estão OK, exceto os que eu alterar.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar == true) controller.marcarTudoOk();
   }
 
-  void messengerError(BuildContext context, List<String> erros) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(erros.take(3).join('\n'))));
-    if (erros.length > 3) {
-      showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Revise o checklist'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [for (final erro in erros) Text('• $erro')],
+  void _responder(BuildContext context, int numero, String valor) {
+    controller.responder(numero, valor);
+    if (!controller.registrarAlertaImpedimentoExibido()) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog.fullscreen(
+        child: Scaffold(
+          backgroundColor: Colors.red.shade900,
+          body: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.white,
+                      size: 88,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Equipamento impedido de operar',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 20),
+                    for (final numero in controller.itensCriticosComProblema)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          'Item $numero · ${controller.catalogo.itens.firstWhere((item) => item.numero == numero).descricao}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Entendi e continuar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Fechar'),
-            ),
-          ],
         ),
-      );
-    }
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: controller,
     builder: (context, _) {
-      final respondidos = controller.respostas
-          .where((resposta) => resposta.resposta != null)
-          .length;
       return Scaffold(
         appBar: AppBar(title: const Text('Itens do checklist')),
         body: Column(
@@ -72,14 +113,36 @@ class ChecklistItensPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      '$respondidos/${controller.respostas.length} respondidos',
+                      '${controller.respondidos}/${controller.respostas.length} respondidos',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    if (controller.impedido) ...[
+                      const SizedBox(height: 8),
+                      const Chip(
+                        avatar: Icon(Icons.warning_amber, color: Colors.white),
+                        label: Text('EQUIPAMENTO IMPEDIDO DE OPERAR'),
+                        backgroundColor: Colors.red,
+                        labelStyle: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                    if (controller.respondidos < controller.respostas.length)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: OutlinedButton.icon(
+                          onPressed:
+                              controller.finalizado || controller.enviando
+                              ? null
+                              : () => _confirmarMarcarTudoOk(context),
+                          icon: const Icon(Icons.done_all),
+                          label: const Text('Marcar tudo OK'),
+                        ),
+                      ),
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
                       value: controller.respostas.isEmpty
                           ? 0
-                          : respondidos / controller.respostas.length,
+                          : controller.respondidos /
+                                controller.respostas.length,
                     ),
                   ],
                 ),
@@ -95,9 +158,9 @@ class ChecklistItensPage extends StatelessWidget {
                   return _ItemCard(
                     item: item,
                     resposta: resposta,
-                    bloqueado: controller.enviando || controller.sincronizado,
+                    bloqueado: controller.enviando || controller.finalizado,
                     onResposta: (valor) =>
-                        controller.responder(item.numero, valor),
+                        _responder(context, item.numero, valor),
                     onObservacao: (valor) =>
                         controller.definirObservacao(item.numero, valor),
                   );
@@ -129,18 +192,26 @@ class ChecklistItensPage extends StatelessWidget {
                 width: double.infinity,
                 height: 56,
                 child: FilledButton.icon(
-                  onPressed: controller.enviando || controller.sincronizado
+                  onPressed: controller.enviando || controller.finalizado
                       ? null
-                      : () => _enviar(context),
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ChecklistFinalizacaoPage(
+                              controller: controller,
+                            ),
+                          ),
+                        ),
                   icon: controller.enviando
                       ? const SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.cloud_upload),
+                      : const Icon(Icons.assignment_turned_in),
                   label: Text(
-                    controller.enviando ? 'Enviando…' : 'Enviar checklist',
+                    controller.enviando
+                        ? 'Finalizando…'
+                        : 'Finalizar checklist',
                   ),
                 ),
               ),
@@ -278,6 +349,13 @@ class _ItemCard extends StatelessWidget {
                 const Chip(
                   avatar: Icon(Icons.done_all, size: 18),
                   label: Text('Lote'),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ] else if (resposta.origem == 'MANUAL') ...[
+                const SizedBox(height: 8),
+                const Chip(
+                  avatar: Icon(Icons.edit, size: 18),
+                  label: Text('Manual'),
                   visualDensity: VisualDensity.compact,
                 ),
               ],

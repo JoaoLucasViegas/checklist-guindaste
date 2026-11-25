@@ -106,6 +106,23 @@ class BancoLocal {
     );
   }
 
+  static Future<void> registrarFalhaEnvio(
+    String id,
+    String erro, {
+    String? status,
+  }) async {
+    final db = await abrir();
+    await db.rawUpdate(
+      '''UPDATE checklists
+      SET tentativas = tentativas + 1,
+          ultimo_erro = ?,
+          status = COALESCE(?, status),
+          atualizado_em = ?
+      WHERE id = ?''',
+      [erro, status, DateTime.now().toUtc().toIso8601String(), id],
+    );
+  }
+
   static Future<Map<String, dynamic>?> lerChecklist(String id) async {
     final db = await abrir();
     final l = await db.query('checklists', where: 'id = ?', whereArgs: [id]);

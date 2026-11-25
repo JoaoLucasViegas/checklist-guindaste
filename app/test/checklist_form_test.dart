@@ -71,7 +71,7 @@ void main() {
   });
 
   test(
-    'restaura rascunho e envia o contrato completo pelo mesmo UUID',
+    'restaura e finaliza o checklist no aparelho com o contrato completo',
     () async {
       final catalogo = _catalogo();
       final api = _ApiEnvio();
@@ -110,6 +110,7 @@ void main() {
       expect(restaurado.respostas.first.observacao, 'Não tem');
 
       restaurado.definirHorimetroFinal('36470.8');
+      restaurado.definirHoraSaida('02:00');
       for (final item in catalogo.itens.where((item) => item.numero != 1)) {
         if ({10, 22}.contains(item.numero)) {
           restaurado.responder(item.numero, 'N');
@@ -120,30 +121,112 @@ void main() {
       }
 
       restaurado.definirObservacao(10, '  ');
-      expect(await restaurado.enviar(), isFalse);
+      expect(await restaurado.finalizar('c2ln'), isFalse);
       expect(
         restaurado.errosValidacao.any((erro) => erro.contains('Item 10')),
         isTrue,
       );
-      expect(api.payload, isNull);
+      expect(api.chamadas, 0);
       restaurado.definirObservacao(10, 'Problema encontrado');
 
-      expect(await restaurado.enviar(), isTrue);
-      expect(api.payload?['template_id'], catalogo.templateId);
-      expect(api.payload?['horimetro_inicial'], 36466.1);
-      expect(api.payload?['horimetro_final'], 36470.8);
-      expect(api.payload?['respostas'], hasLength(23));
+      expect(await restaurado.finalizar('c2lnbmF0dXJh'), isTrue);
+      final salvo = await BancoLocal.lerChecklist(id);
+      final payload = salvo?['json'] as Map<String, dynamic>;
+      expect(payload['template_id'], catalogo.templateId);
+      expect(payload['horimetro_inicial'], 36466.1);
+      expect(payload['horimetro_final'], 36470.8);
+      expect(payload['assinatura_operador'], 'c2lnbmF0dXJh');
+      expect(payload['respostas'], hasLength(23));
       expect(
-        (api.payload?['respostas'] as List)
+        (payload['respostas'] as List)
             .where((resposta) => (resposta as Map)['resposta'] == 'N')
             .map((resposta) => (resposta as Map)['item_numero'])
             .toList(),
         [1, 10, 22],
       );
-      expect(restaurado.resultadoEnvio?['impedido'], isTrue);
-      expect((await BancoLocal.lerChecklist(id))?['status'], 'SINCRONIZADO');
+      expect(payload['usou_lote'], isFalse);
+      expect(salvo?['status'], 'PENDENTE_ENVIO');
+      expect(api.chamadas, 0);
       await db.delete('checklists', where: 'id = ?', whereArgs: [id]);
       restaurado.dispose();
+    },
+  );
+
+  test(
+    'lote não sobrescreve respostas e registra alterações manuais',
+    () async {
+      final controller = ChecklistEdicaoController(
+        api: ApiMock(),
+        catalogo: _catalogo(),
+        usuarioId: 'operador-1',
+      );
+      controller.responder(1, 'N');
+      final marcados = controller.marcarTudoOk();
+
+      expect(marcados, 22);
+      expect(controller.respostas[0].resposta, 'N');
+      expect(controller.respostas[1].resposta, 'S');
+      expect(controller.respostas[1].origem, 'LOTE');
+      expect(controller.usouLote, isTrue);
+      expect(controller.itensMarcadosLote, 22);
+
+      controller.responder(2, 'N');
+      expect(controller.respostas[1].origem, 'MANUAL');
+      expect(controller.itensAlteradosAposLote, 1);
+      expect(controller.resumo.lote, 21);
+      expect(controller.resumo.manuais, 2);
+      expect(controller.itensCriticosComProblema, [1]);
+      expect(controller.registrarAlertaImpedimentoExibido(), isTrue);
+      expect(controller.registrarAlertaImpedimentoExibido(), isFalse);
+      await controller.aguardarSalvamento();
+      final db = await BancoLocal.abrir();
+      await db.delete(
+        'checklists',
+        where: 'id = ?',
+        whereArgs: [controller.id],
+      );
+      controller.dispose();
+    },
+  );
+
+  test(
+    'finalização exige horímetro final, hora de saída e assinatura',
+    () async {
+      final controller = ChecklistEdicaoController(
+        api: ApiMock(),
+        catalogo: _catalogo(),
+        usuarioId: 'operador-1',
+      );
+      await controller.inicializar();
+      controller
+        ..selecionarLocal('local-1')
+        ..definirHorimetroInicial('10.0')
+        ..definirHorimetroFinal('9.0')
+        ..definirHoraSaida('');
+      await controller.aguardarSalvamento();
+
+      expect(await controller.finalizar(''), isFalse);
+      expect(
+        controller.errosValidacao.any(
+          (erro) => erro.contains('Horímetro final'),
+        ),
+        isTrue,
+      );
+      expect(
+        controller.errosValidacao.any(
+          (erro) => erro.contains('Horímetro final não pode ser menor'),
+        ),
+        isTrue,
+      );
+      expect(
+        controller.errosValidacao.any((erro) => erro.contains('hora de saída')),
+        isTrue,
+      );
+      expect(
+        controller.errosValidacao.any((erro) => erro.contains('Assinatura')),
+        isTrue,
+      );
+      controller.dispose();
     },
   );
 }
@@ -169,7 +252,7 @@ Catalogo _catalogo() => Catalogo(
 );
 
 class _ApiEnvio extends ApiMock {
-  Map<String, dynamic>? payload;
+  int chamadas = 0;
 
   @override
   Future<double?> ultimoHorimetro(String equipamentoId) async => 36466.1;
@@ -179,7 +262,7 @@ class _ApiEnvio extends ApiMock {
     String id,
     Map<String, dynamic> payload,
   ) async {
-    this.payload = payload;
+    chamadas++;
     final problemasCriticos = (payload['respostas'] as List).any(
       (resposta) =>
           {1, 10, 22}.contains((resposta as Map)['item_numero']) &&
