@@ -14,13 +14,15 @@ flutter run
 Se o `flutter create` sobrescrever este README, recupere com `git checkout app/README.md`.
 Depois, mova as pastas de `lib_planejado/` para dentro de `lib/` (ou renomeie) e siga a estrutura abaixo.
 
-## Android: 2 ajustes obrigatórios para o APK de release funcionar (FE-14)
-Em `android/app/src/main/AndroidManifest.xml`:
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>   <!-- fora de <application>; o flutter create só põe no modo debug -->
-<application ... android:usesCleartextTraffic="true">           <!-- só na demo (HTTP no Wi-Fi); remover quando houver HTTPS -->
+## Android: rede no APK de release (FE-14)
+O manifest principal já declara `INTERNET` e permite HTTP simples (`usesCleartextTraffic`) para a demo local. Essa permissão de HTTP é ampla: use somente em builds de demonstração numa rede confiável e remova-a quando a API estiver em HTTPS.
+
+Em aparelho físico, `10.0.2.2` não aponta para o notebook. Informe o IP do computador na rede:
+```bash
+cd app
+flutter build apk --release --dart-define=API_URL=http://192.168.0.15:8000/api/v1
 ```
-Sem a permissão, o app de release **não acessa a rede**. Teste o APK de release (não só `flutter run`) já no D3.
+Teste o APK instalado em aparelho real; `flutter run` sozinho não valida o build de release.
 
 ## Estrutura de `lib/`
 ```

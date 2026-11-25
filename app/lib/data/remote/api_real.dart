@@ -29,9 +29,6 @@ class ApiReal implements Api {
     return Map<String, dynamic>.from(r.data);
   }
 
-  // Demais métodos: copiar o padrão (usando options: _op) nas tarefas FE-03 em diante.
-  // Até lá, deixe-os lançando UnimplementedError, como no ApiMock.
-  @override
   @override
   Future<Map<String, dynamic>> template() async {
     final r = await _dio.get('/template', options: _op);
@@ -39,28 +36,67 @@ class ApiReal implements Api {
   }
 
   @override
-  @override
   Future<Map<String, dynamic>> lookups() async {
     final r = await _dio.get('/lookups', options: _op);
     return Map<String, dynamic>.from(r.data);
   }
 
   @override
-  Future<double?> ultimoHorimetro(String equipamentoId) =>
-      throw UnimplementedError();
+  Future<double?> ultimoHorimetro(String equipamentoId) async {
+    final r = await _dio.get(
+      '/equipamentos/${Uri.encodeComponent(equipamentoId)}/ultimo-horimetro',
+      options: _op,
+    );
+    final valor = r.data['horimetro_final'];
+    return valor == null ? null : (valor as num).toDouble();
+  }
+
   @override
   Future<Map<String, dynamic>> enviarChecklist(
     String id,
     Map<String, dynamic> payload,
-  ) => throw UnimplementedError();
+  ) async {
+    final r = await _dio.put(
+      '/checklists/${Uri.encodeComponent(id)}',
+      data: payload,
+      options: _op,
+    );
+    return Map<String, dynamic>.from(r.data);
+  }
+
   @override
-  Future<Map<String, dynamic>> listarChecklists({String? status}) =>
-      throw UnimplementedError();
+  Future<Map<String, dynamic>> listarChecklists({String? status}) async {
+    final r = await _dio.get(
+      '/checklists',
+      queryParameters: {'status': ?status},
+      options: _op,
+    );
+    return Map<String, dynamic>.from(r.data);
+  }
+
   @override
-  Future<Map<String, dynamic>> detalhe(String id) => throw UnimplementedError();
+  Future<Map<String, dynamic>> detalhe(String id) async {
+    final r = await _dio.get(
+      '/checklists/${Uri.encodeComponent(id)}',
+      options: _op,
+    );
+    return Map<String, dynamic>.from(r.data);
+  }
+
   @override
-  Future<void> vistar(String id) => throw UnimplementedError();
+  Future<void> vistar(String id) async {
+    await _dio.post(
+      '/checklists/${Uri.encodeComponent(id)}/vistar',
+      options: _op,
+    );
+  }
+
   @override
-  Future<void> solicitarCorrecao(String id, String motivo) =>
-      throw UnimplementedError();
+  Future<void> solicitarCorrecao(String id, String motivo) async {
+    await _dio.post(
+      '/checklists/${Uri.encodeComponent(id)}/solicitar-correcao',
+      data: {'motivo': motivo},
+      options: _op,
+    );
+  }
 }
