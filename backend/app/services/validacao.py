@@ -69,5 +69,8 @@ def validar_checklist(dados: dict, itens: list[dict]) -> list[dict]:
         item = por_numero.get(r["item_numero"])
         if item and r["resposta"] == "NA" and not item["permite_na"]:
             erro("respostas", f"Item {r['item_numero']} não aceita 'NA'.")
+        # RN02: resposta "N" exige observação (texto vazio ou só espaços não vale)
+        if r["resposta"] == "N" and not (r.get("observacao") or "").strip():
+            erro("respostas", f"Item {r['item_numero']} com resposta 'N' exige observação.")
 
     return erros
