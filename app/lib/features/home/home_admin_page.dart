@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/responsivo.dart';
+import '../../core/tema_app.dart';
 import '../../data/remote/api.dart';
+import '../auth/confirmar_saida.dart';
 import '../auth/sessao.dart';
 import 'detalhe_admin_page.dart';
 
@@ -24,8 +27,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
 
   bool _carregando = true;
   String? _erro;
-  String?
-  _filtroStatus; // null = Todos, 'ENVIADO', 'CORRECAO_SOLICITADA', 'VISTADO'
+  String? _filtroStatus;
 
   Map<String, dynamic> _contadores = const {
     'pendentes': 0,
@@ -34,7 +36,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     'vistados_hoje': 0,
   };
 
-  List _itens = const [];
+  List<Map<String, dynamic>> _itens = const [];
 
   @override
   void initState() {
@@ -108,106 +110,157 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
   @override
   Widget build(BuildContext context) {
     final sessao = context.watch<Sessao>();
+    final ehTablet = Responsivo.ehTablet(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Administrador'),
-        actions: [
-          Center(
-            child: ValueListenableBuilder<int>(
-              valueListenable: _segundosRestantes,
-              builder: (_, segundos, _) => Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: Text(
-                  'Atualiza em ${segundos}s',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Atualizar',
-            onPressed: () => _recarregar(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sair',
-            onPressed: () async {
-              final sair = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Sair da conta'),
-                  content: const Text('Deseja sair da conta de Administrador?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Cancelar'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Sair'),
-                    ),
-                  ],
-                ),
-              );
-              if (sair == true) {
-                sessao.sair();
-              }
-            },
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => _recarregar(),
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            // 1. Cartões de contadores
-            SliverToBoxAdapter(
+      backgroundColor: TemaApp.fundo,
+      body: Column(
+        children: [
+          // Cabeçalho escuro com contadores integrados (fiel à ref image_2631dc.png)
+          Container(
+            color: TemaApp.escuro,
+            child: SafeArea(
+              bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: 2.3,
-                  children: [
-                    _CartaoContador(
-                      titulo: 'Pendentes',
-                      valor: _contadores['pendentes'] ?? 0,
-                      cor: Colors.amber.shade800,
-                    ),
-                    _CartaoContador(
-                      titulo: 'Impedidos',
-                      valor: _contadores['impedidos'] ?? 0,
-                      cor: Colors.red.shade700,
-                    ),
-                    _CartaoContador(
-                      titulo: 'Correção solicitada',
-                      valor: _contadores['correcao'] ?? 0,
-                      cor: Colors.orange.shade800,
-                    ),
-                    _CartaoContador(
-                      titulo: 'Vistados hoje',
-                      valor: _contadores['vistados_hoje'] ?? 0,
-                      cor: Colors.green.shade700,
-                    ),
-                  ],
+                padding: EdgeInsets.fromLTRB(
+                  ehTablet ? 24 : 16,
+                  14,
+                  ehTablet ? 24 : 16,
+                  16,
+                ),
+                child: ContainerResponsivo(
+                  maxWidth: 1120,
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'PAINEL ADMINISTRADOR',
+                                  style: TextStyle(
+                                    color: TemaApp.azulClaro,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  sessao.nome ?? 'Administrador',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ValueListenableBuilder<int>(
+                            valueListenable: _segundosRestantes,
+                            builder: (_, segundos, _) => Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Text(
+                                '${segundos}s',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF94A3B8),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.refresh_rounded,
+                              color: Colors.white,
+                            ),
+                            tooltip: 'Atualizar',
+                            onPressed: () => _recarregar(),
+                          ),
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              backgroundColor: TemaApp.escuroCard,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: () => confirmarSaida(context, sessao),
+                            child: const Text('Sair'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      GridView.count(
+                        crossAxisCount: ehTablet ? 4 : 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: ehTablet ? 2.4 : 2.3,
+                        children: [
+                          _contadorEscuro(
+                            titulo: 'Pendentes',
+                            valor: _contadores['pendentes'] ?? 0,
+                            corNumero: TemaApp.azulClaro,
+                            fundo: TemaApp.escuroCard,
+                            borda: TemaApp.escuroBorda,
+                            onTap: () => _selecionarFiltro('ENVIADO'),
+                          ),
+                          _contadorEscuro(
+                            titulo: 'Impedidos',
+                            valor: _contadores['impedidos'] ?? 0,
+                            corNumero: const Color(0xFFFCA5A5),
+                            fundo: const Color(0xFF4C0519),
+                            borda: const Color(0xFF9F1239),
+                            onTap: () => _selecionarFiltro(null),
+                          ),
+                          _contadorEscuro(
+                            titulo: 'Correção',
+                            valor: _contadores['correcao'] ?? 0,
+                            corNumero: TemaApp.ambar,
+                            fundo: TemaApp.escuroCard,
+                            borda: TemaApp.escuroBorda,
+                            onTap: () =>
+                                _selecionarFiltro('CORRECAO_SOLICITADA'),
+                          ),
+                          _contadorEscuro(
+                            titulo: 'Vistados hoje',
+                            valor: _contadores['vistados_hoje'] ?? 0,
+                            corNumero: const Color(0xFF4ADE80),
+                            fundo: TemaApp.escuroCard,
+                            borda: TemaApp.escuroBorda,
+                            onTap: () => _selecionarFiltro('VISTADO'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
+          ),
 
-            // 2. Filtro por status (chips)
-            SliverToBoxAdapter(
+          // Barra branca de filtros (igual à ref)
+          Container(
+            width: double.infinity,
+            color: TemaApp.superficie,
+            padding: EdgeInsets.symmetric(
+              horizontal: ehTablet ? 24 : 16,
+              vertical: 10,
+            ),
+            child: ContainerResponsivo(
+              maxWidth: 1120,
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
                 child: Row(
                   children: [
                     _chipFiltro('Todos', null),
@@ -221,111 +274,132 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                 ),
               ),
             ),
+          ),
+          const Divider(height: 1),
 
-            // 3. Lista de checklists
-            if (_carregando)
-              const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_erro != null)
-              SliverFillRemaining(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Erro ao carregar checklists:\n$_erro',
-                          textAlign: TextAlign.center,
+          // Lista de checklists
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => _recarregar(),
+              child: _carregando
+                  ? const Center(child: CircularProgressIndicator())
+                  : _erro != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Erro ao carregar checklists:\n$_erro',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            FilledButton(
+                              onPressed: () => _recarregar(),
+                              child: const Text('Tentar novamente'),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 12),
-                        FilledButton(
-                          onPressed: () => _recarregar(),
-                          child: const Text('Tentar novamente'),
-                        ),
-                      ],
+                      ),
+                    )
+                  : _itens.isEmpty
+                  ? const Center(child: Text('Nenhum checklist encontrado.'))
+                  : ListView.builder(
+                      padding: Responsivo.paddingPagina(context),
+                      itemCount: _itens.length,
+                      itemBuilder: (context, index) {
+                        final item = _itens[index];
+                        return ContainerResponsivo(
+                          maxWidth: 1120,
+                          child: _ItemChecklistCard(
+                            item: item,
+                            onTap: () async {
+                              final id = item['id'].toString();
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      DetalheAdminPage(checklistId: id),
+                                ),
+                              );
+                              _recarregar();
+                            },
+                          ),
+                        );
+                      },
                     ),
-                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _contadorEscuro({
+    required String titulo,
+    required Object valor,
+    required Color corNumero,
+    required Color fundo,
+    required Color borda,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: fundo,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borda),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '$valor',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: corNumero,
+                  height: 1.1,
                 ),
-              )
-            else if (_itens.isEmpty)
-              const SliverFillRemaining(
-                child: Center(child: Text('Nenhum checklist encontrado.')),
-              )
-            else
-              SliverList.builder(
-                itemCount: _itens.length,
-                itemBuilder: (context, index) {
-                  final item = _itens[index];
-                  return _ItemChecklistCard(
-                    item: item,
-                    onTap: () async {
-                      final id = item['id'].toString();
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => DetalheAdminPage(checklistId: id),
-                        ),
-                      );
-                      _recarregar();
-                    },
-                  );
-                },
               ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                titulo,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFCBD5E1),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _chipFiltro(String label, String? valor) {
+    final selecionado = _filtroStatus == valor;
     return ChoiceChip(
       label: Text(label),
-      selected: _filtroStatus == valor,
-      onSelected: (_) => _selecionarFiltro(valor),
-    );
-  }
-}
-
-class _CartaoContador extends StatelessWidget {
-  final String titulo;
-  final Object valor;
-  final Color cor;
-
-  const _CartaoContador({
-    required this.titulo,
-    required this.valor,
-    required this.cor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              titulo,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$valor',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: cor,
-              ),
-            ),
-          ],
-        ),
+      selected: selecionado,
+      showCheckmark: false,
+      selectedColor: TemaApp.escuro,
+      backgroundColor: TemaApp.fundo,
+      labelStyle: TextStyle(
+        color: selecionado ? Colors.white : TemaApp.textoSecundario,
+        fontWeight: FontWeight.w700,
+        fontSize: 13.5,
       ),
+      side: BorderSide.none,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      onSelected: (_) => _selecionarFiltro(valor),
     );
   }
 }
@@ -341,6 +415,7 @@ class _ItemChecklistCard extends StatelessWidget {
     final impedido = item['impedido'] == true;
     final usouLote = item['usou_lote'] == true;
     final editado = item['editado'] == true;
+    final status = (item['status'] ?? '').toString().toUpperCase();
 
     final operadorMap = item['operador'] as Map?;
     final operadorNome = operadorMap?['nome']?.toString() ?? 'Operador';
@@ -349,76 +424,114 @@ class _ItemChecklistCard extends StatelessWidget {
     final turno = item['turno']?.toString() ?? '-';
     final dataTurno = item['data_turno']?.toString() ?? '-';
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      color: impedido ? Colors.red.shade50 : null,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: impedido ? Colors.red.shade400 : Colors.grey.shade300,
-          width: impedido ? 1.5 : 1,
-        ),
-      ),
-      child: ListTile(
-        onTap: onTap,
-        title: Text(
-          '$equipamento • $local',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: impedido ? Colors.red.shade900 : null,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Operador: $operadorNome'),
-              Text('Turno: $turno • Data: $dataTurno'),
-              if (impedido || usouLote || editado) ...[
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: impedido ? TemaApp.perigoFundo : TemaApp.superficie,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: impedido ? TemaApp.perigo : TemaApp.borda,
+                width: impedido ? 1.8 : 1.2,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    if (impedido)
-                      _selo('IMPEDIDO', Colors.red.shade700, Colors.white),
-                    if (usouLote)
-                      _selo(
-                        'Lote',
-                        Colors.indigo.shade100,
-                        Colors.indigo.shade900,
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (impedido)
+                            const SeloStatus(
+                              texto: 'IMPEDIDO',
+                              fundo: TemaApp.perigo,
+                              corTexto: Colors.white,
+                            ),
+                          if (usouLote)
+                            const SeloStatus(
+                              texto: 'lote',
+                              fundo: TemaApp.ambarFundo,
+                              corTexto: TemaApp.ambarEscuro,
+                              borda: TemaApp.ambarBorda,
+                            ),
+                          if (status == 'VISTADO')
+                            const SeloStatus(
+                              texto: 'VISTADO',
+                              fundo: TemaApp.sucessoFundo,
+                              corTexto: TemaApp.sucesso,
+                            )
+                          else if (status == 'CORRECAO_SOLICITADA')
+                            const SeloStatus(
+                              texto: 'CORREÇÃO',
+                              fundo: TemaApp.ambarFundo,
+                              corTexto: TemaApp.ambarEscuro,
+                            ),
+                          if (editado)
+                            const SeloStatus(
+                              texto: 'Editado',
+                              fundo: TemaApp.azulFundo,
+                              corTexto: TemaApp.azulAdmin,
+                            ),
+                        ],
                       ),
-                    if (editado)
-                      _selo(
-                        'Editado',
-                        Colors.amber.shade100,
-                        Colors.amber.shade900,
+                    ),
+                    Text(
+                      dataTurno,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: TemaApp.textoTerciario,
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  equipamento,
+                  style: TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    color: impedido ? TemaApp.perigo : TemaApp.textoPrimario,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$operadorNome · $local · Turno $turno',
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    color: TemaApp.textoSecundario,
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: Divider(),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Conferir itens →',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: impedido ? TemaApp.perigo : TemaApp.azulAdmin,
+                      ),
+                    ),
                   ],
                 ),
               ],
-            ],
+            ),
           ),
-        ),
-        trailing: const Icon(Icons.chevron_right),
-      ),
-    );
-  }
-
-  Widget _selo(String texto, Color fundo, Color corTexto) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: fundo,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        texto,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: corTexto,
         ),
       ),
     );

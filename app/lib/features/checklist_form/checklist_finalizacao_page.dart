@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:signature/signature.dart';
 
+import '../../core/responsivo.dart';
+import '../../core/tema_app.dart';
 import '../../data/local/banco_local.dart';
 import '../../sync/sincronizador.dart';
 import 'checklist_edicao_controller.dart';
@@ -32,8 +34,8 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
     super.initState();
     controller.prepararFinalizacao();
     _assinatura = SignatureController(
-      penStrokeWidth: 3,
-      penColor: Colors.black,
+      penStrokeWidth: 3.2,
+      penColor: TemaApp.textoPrimario,
     );
     _horimetroFinal = TextEditingController(text: controller.horimetroFinal);
     _observacao = TextEditingController(text: controller.observacaoGeral);
@@ -97,9 +99,22 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
+        icon: Icon(
+          status == 'SINCRONIZADO'
+              ? Icons.check_circle_outline_rounded
+              : status == 'ERRO_VALIDACAO'
+              ? Icons.error_outline_rounded
+              : Icons.cloud_upload_outlined,
+          size: 36,
+          color: status == 'SINCRONIZADO'
+              ? TemaApp.sucesso
+              : status == 'ERRO_VALIDACAO'
+              ? TemaApp.perigo
+              : TemaApp.ambarEscuro,
+        ),
         title: Text(
           status == 'SINCRONIZADO'
-              ? 'Enviado'
+              ? 'Checklist enviado'
               : status == 'ERRO_VALIDACAO'
               ? 'Revisão necessária'
               : 'Salvo no aparelho',
@@ -107,6 +122,7 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
         content: Text(mensagem),
         actions: [
           FilledButton(
+            style: TemaApp.botaoAmbar,
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Concluir'),
           ),
@@ -135,197 +151,335 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
     return inicial != null && finalValue != null && finalValue < inicial;
   }
 
-  String get _ajudaHorimetroFinal {
-    final inicial = ChecklistEdicaoController.parseHorimetro(
-      controller.horimetroInicial,
-    );
-    final finalValue = ChecklistEdicaoController.parseHorimetro(
-      _horimetroFinal.text,
-    );
-    if (inicial != null && finalValue != null && finalValue >= inicial) {
-      return 'Aumento desde o início: '
-          '${(finalValue - inicial).toStringAsFixed(1)} h.';
-    }
-    return 'Leitura atual. Deve ser igual ou maior que '
-        '$_horimetroInicialVisivel.';
-  }
-
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: controller,
-    builder: (context, _) => Scaffold(
-      appBar: AppBar(title: const Text('Finalização')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Resumo', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            '${controller.resumo.lote} em lote · '
-            '${controller.resumo.manuais} manuais · '
-            '${controller.resumo.problemas} com problema',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          if (controller.impedido) ...[
-            const SizedBox(height: 8),
-            const Card(
-              color: Color(0xFFB71C1C),
-              child: ListTile(
-                leading: Icon(Icons.warning_amber, color: Colors.white),
-                title: Text(
-                  'EQUIPAMENTO IMPEDIDO DE OPERAR',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 20),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.speed),
-              title: const Text('Horímetro inicial deste checklist'),
-              subtitle: Text(_horimetroInicialVisivel),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            enabled: !controller.enviando,
-            controller: _horimetroFinal,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [_HorimetroFinalInputFormatter()],
-            decoration: InputDecoration(
-              labelText: 'Horímetro final (obrigatório)',
-              suffixText: 'h',
-              border: const OutlineInputBorder(),
-              helperText: _horimetroFinalMenorQueInicial
-                  ? null
-                  : _ajudaHorimetroFinal,
-              errorText: _horimetroFinalMenorQueInicial
-                  ? 'Não pode ser menor que o horímetro inicial.'
-                  : null,
-            ),
-            onChanged: controller.definirHorimetroFinal,
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: controller.enviando ? null : _selecionarHoraSaida,
-            icon: const Icon(Icons.logout),
-            label: Text('Hora de saída: ${controller.horaSaida}'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            enabled: !controller.enviando,
-            controller: _observacao,
-            minLines: 2,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: 'Observação geral (opcional)',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: controller.definirObservacaoGeral,
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Assinatura do operador',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Container(
-            height: 190,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Theme.of(context).colorScheme.outline),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: IgnorePointer(
-              ignoring: controller.enviando,
-              child: Signature(
-                controller: _assinatura,
-                backgroundColor: Colors.white,
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: controller.enviando ? null : _assinatura.clear,
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('Limpar assinatura'),
-            ),
-          ),
-          if (controller.errosValidacao.isNotEmpty ||
-              controller.erro != null) ...[
-            const SizedBox(height: 8),
-            Card(
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final erro in controller.errosValidacao)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text('• $erro'),
-                      ),
-                    if (controller.erro != null)
-                      Text(
-                        controller.erro!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          if (_erroSincronizacao != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _erroSincronizacao!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ],
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
+    builder: (context, _) {
+      final ehTablet = Responsivo.ehTablet(context);
+
+      final blocoDados = Card(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          padding: const EdgeInsets.all(16),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Salvo no aparelho primeiro; o envio ocorre quando houver conexão.',
-                textAlign: TextAlign.center,
+              Text(
+                'Encerramento do turno',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Horímetro inicial: $_horimetroInicialVisivel',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: TemaApp.textoSecundario,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                enabled: !controller.enviando,
+                controller: _horimetroFinal,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [_HorimetroFinalInputFormatter()],
+                decoration: InputDecoration(
+                  labelText: 'Horímetro final (obrigatório)',
+                  suffixText: 'h',
+                  errorText: _horimetroFinalMenorQueInicial
+                      ? 'Não pode ser menor que o horímetro inicial.'
+                      : null,
+                ),
+                onChanged: controller.definirHorimetroFinal,
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: controller.enviando ? null : _selecionarHoraSaida,
+                icon: const Icon(Icons.schedule_rounded),
+                label: Text('Hora de saída: ${controller.horaSaida}'),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                enabled: !controller.enviando,
+                controller: _observacao,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Observação geral (opcional)',
+                ),
+                onChanged: controller.definirObservacaoGeral,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      final blocoAssinatura = Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Assinatura do operador',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  TextButton.icon(
+                    onPressed: controller.enviando ? null : _assinatura.clear,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    label: const Text('Limpar'),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: FilledButton.icon(
-                  onPressed: controller.enviando ? null : _finalizar,
-                  icon: controller.enviando
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save),
-                  label: Text(
-                    controller.enviando ? 'Salvando…' : 'Finalizar e salvar',
+              Container(
+                height: ehTablet ? 240 : 190,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: TemaApp.bordaForte, width: 1.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(11),
+                  child: IgnorePointer(
+                    ignoring: controller.enviando,
+                    child: Signature(
+                      controller: _assinatura,
+                      backgroundColor: Colors.white,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
         ),
-      ),
-    ),
+      );
+
+      return Scaffold(
+        backgroundColor: TemaApp.fundo,
+        appBar: AppBar(
+          title: const Text(
+            'PASSO 3/3 · FINALIZAÇÃO',
+            style: TextStyle(
+              color: TemaApp.ambar,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+            ),
+          ),
+          centerTitle: true,
+        ),
+        body: SingleChildScrollView(
+          padding: Responsivo.paddingPagina(context),
+          child: ContainerResponsivo(
+            maxWidth: 1040,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _metricaResumo(
+                        'Em lote',
+                        '${controller.resumo.lote}',
+                        TemaApp.ambarEscuro,
+                        TemaApp.ambarFundo,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _metricaResumo(
+                        'Manuais',
+                        '${controller.resumo.manuais}',
+                        TemaApp.sucesso,
+                        TemaApp.sucessoFundo,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _metricaResumo(
+                        'Problemas',
+                        '${controller.resumo.problemas}',
+                        controller.resumo.problemas > 0
+                            ? TemaApp.perigo
+                            : TemaApp.neutro,
+                        controller.resumo.problemas > 0
+                            ? TemaApp.perigoFundo
+                            : TemaApp.neutroFundo,
+                      ),
+                    ),
+                  ],
+                ),
+                if (controller.impedido) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: TemaApp.perigo,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'EQUIPAMENTO IMPEDIDO DE OPERAR',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                if (ehTablet)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: blocoDados),
+                      const SizedBox(width: 16),
+                      Expanded(child: blocoAssinatura),
+                    ],
+                  )
+                else ...[
+                  blocoDados,
+                  const SizedBox(height: 16),
+                  blocoAssinatura,
+                ],
+                if (controller.errosValidacao.isNotEmpty ||
+                    controller.erro != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: TemaApp.perigoFundo,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: TemaApp.perigoBorda),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final erro in controller.errosValidacao)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              '• $erro',
+                              style: const TextStyle(
+                                color: TemaApp.perigo,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        if (controller.erro != null)
+                          Text(
+                            controller.erro!,
+                            style: const TextStyle(
+                              color: TemaApp.perigo,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (_erroSincronizacao != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _erroSincronizacao!,
+                    style: const TextStyle(
+                      color: TemaApp.perigo,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            decoration: const BoxDecoration(
+              color: TemaApp.superficie,
+              border: Border(top: BorderSide(color: TemaApp.borda)),
+            ),
+            child: ContainerResponsivo(
+              maxWidth: 1040,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Salvo no aparelho primeiro; o envio ocorre automaticamente quando houver conexão.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: TemaApp.textoSecundario,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton(
+                      style: TemaApp.botaoAmbar,
+                      onPressed: controller.enviando ? null : _finalizar,
+                      child: Text(
+                        controller.enviando
+                            ? 'Salvando…'
+                            : 'Finalizar e Salvar',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
   );
+
+  Widget _metricaResumo(String rotulo, String valor, Color cor, Color fundo) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: fundo,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            valor,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: cor,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            rotulo,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: cor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _HorimetroFinalInputFormatter extends TextInputFormatter {

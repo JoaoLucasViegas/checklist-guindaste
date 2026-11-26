@@ -2,15 +2,16 @@ import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 import 'core/config.dart';
+import 'core/tema_app.dart';
 import 'data/remote/api.dart';
 import 'data/remote/api_mock.dart';
 import 'data/remote/api_real.dart';
+import 'data/repositories/catalogo_repository.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/sessao.dart';
+import 'features/catalogo/catalogo_controller.dart';
 import 'features/home/home_admin_page.dart';
 import 'features/home/home_operador_page.dart';
-import 'data/repositories/catalogo_repository.dart';
-import 'features/catalogo/catalogo_controller.dart';
 import 'sync/sincronizador.dart';
 
 Future<void> main() async {
@@ -49,7 +50,7 @@ class App extends StatelessWidget {
     return MaterialApp(
       title: 'Checklist de Guindaste',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
+      theme: TemaApp.claro,
       home: Consumer<Sessao>(
         builder: (_, s, _) {
           if (!s.logado) return const LoginPage();

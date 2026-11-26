@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/responsivo.dart';
+import '../../core/tema_app.dart';
 import '../../data/remote/api.dart';
 
 class DetalheAdminPage extends StatefulWidget {
@@ -52,16 +55,22 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        icon: const Icon(
+          Icons.verified_outlined,
+          color: TemaApp.sucesso,
+          size: 34,
+        ),
         title: const Text('Confirmar visto'),
         content: const Text(
           'Ao vistar, este checklist será travado e o operador não poderá mais editá-lo. Deseja continuar?',
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancelar'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: TemaApp.sucesso),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Vistar'),
           ),
@@ -96,6 +105,11 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
     final motivo = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        icon: const Icon(
+          Icons.edit_note_rounded,
+          color: TemaApp.ambarEscuro,
+          size: 34,
+        ),
         title: const Text('Solicitar correção'),
         content: Form(
           key: formKey,
@@ -106,7 +120,6 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
             decoration: const InputDecoration(
               labelText: 'Motivo (obrigatório)',
               hintText: 'Descreva o que o operador precisa corrigir...',
-              border: OutlineInputBorder(),
             ),
             validator: (v) {
               if (v == null || v.trim().isEmpty) {
@@ -117,7 +130,7 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
           ),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancelar'),
           ),
@@ -127,7 +140,7 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
                 Navigator.pop(ctx, controller.text.trim());
               }
             },
-            child: const Text('Enviar'),
+            child: const Text('Enviar solicitação'),
           ),
         ],
       ),
@@ -160,7 +173,7 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
         title: const Text('Detalhe do Checklist'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Atualizar',
             onPressed: _carregar,
           ),
@@ -169,26 +182,33 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
       body: _carregando
           ? const Center(child: CircularProgressIndicator())
           : _erro != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Erro ao carregar detalhe:\n$_erro',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        FilledButton(
-                          onPressed: _carregar,
-                          child: const Text('Tentar novamente'),
-                        ),
-                      ],
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      size: 40,
+                      color: TemaApp.perigo,
                     ),
-                  ),
-                )
-              : _buildConteudo(_dados!),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Erro ao carregar detalhe:\n$_erro',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _carregar,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Tentar novamente'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _buildConteudo(_dados!),
       bottomNavigationBar: (_dados == null || _carregando)
           ? null
           : _buildRodape(_dados!),
@@ -196,110 +216,190 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
   }
 
   Widget _buildConteudo(Map<String, dynamic> d) {
+    final ehTablet = Responsivo.ehTablet(context);
     final itensBrutos = ((d['itens'] ?? d['respostas']) as List?) ?? const [];
     final itens = itensBrutos
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
 
     final itensProblema = itens.where((i) {
-      final resp = (i['resposta'] ?? i['status'] ?? '').toString().toUpperCase();
+      final resp = (i['resposta'] ?? i['status'] ?? '')
+          .toString()
+          .toUpperCase();
       return resp == 'N' || resp == 'NAO' || resp == 'PROBLEMA';
     }).toList();
 
     final itensOk = itens.where((i) {
-      final resp = (i['resposta'] ?? i['status'] ?? '').toString().toUpperCase();
+      final resp = (i['resposta'] ?? i['status'] ?? '')
+          .toString()
+          .toUpperCase();
       return resp != 'N' && resp != 'NAO' && resp != 'PROBLEMA';
     }).toList();
 
     final qtdCriticos = itensProblema.where((i) => i['critico'] == true).length;
     final impedido = d['impedido'] == true || qtdCriticos > 0;
 
-    final obsGeral = (d['observacao_geral'] ?? d['observacao'] ?? '').toString().trim();
-    final assinaturaB64 = (d['assinatura_base64'] ?? d['assinatura'] ?? '').toString().trim();
+    final obsGeral = (d['observacao_geral'] ?? d['observacao'] ?? '')
+        .toString()
+        .trim();
+    final assinaturaB64 =
+        (d['assinatura_operador'] ??
+                d['assinatura_base64'] ??
+                d['assinatura'] ??
+                '')
+            .toString()
+            .trim();
     final eventosBrutos = (d['eventos'] as List?) ?? const [];
     final eventos = eventosBrutos
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
 
-    return RefreshIndicator(
-      onRefresh: _carregar,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-        children: [
-          // 1. Faixa de resumo
-          _buildFaixaResumo(
-            qtdOk: itensOk.length,
-            qtdProblema: itensProblema.length,
-            qtdCriticos: qtdCriticos,
-            impedido: impedido,
-          ),
-          const SizedBox(height: 12),
-
-          // 2. Cabeçalho completo
-          _buildCabecalho(d),
-          const SizedBox(height: 12),
-
-          // 3. Itens com problema no topo (em vermelho)
-          if (itensProblema.isNotEmpty) ...[
-            _tituloSecao(
-              'Itens com problema (${itensProblema.length})',
-              cor: Colors.red.shade800,
-            ),
-            const SizedBox(height: 6),
-            ...itensProblema.map(_buildCardItemProblema),
-            const SizedBox(height: 12),
-          ],
-
-          // 4. Todos os itens OK logo abaixo (já abertos)
-          _tituloSecao('Itens OK (${itensOk.length})'),
-          const SizedBox(height: 6),
-          Card(
-            child: Column(
-              children: [
-                for (int i = 0; i < itensOk.length; i++) ...[
-                  _buildLinhaItemOk(itensOk[i]),
-                  if (i < itensOk.length - 1) const Divider(height: 1),
-                ],
-                if (itensOk.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('Nenhum item OK.'),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 5. Observação geral
-          _tituloSecao('Observação geral'),
-          const SizedBox(height: 6),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                obsGeral.isEmpty ? 'Sem observação geral.' : obsGeral,
+    final cardObs = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tituloSecao('Observação geral', icone: Icons.notes_rounded),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              obsGeral.isEmpty ? 'Sem observação geral.' : obsGeral,
+              style: TextStyle(
+                color: obsGeral.isEmpty
+                    ? TemaApp.textoTerciario
+                    : TemaApp.textoPrimario,
               ),
             ),
           ),
-          const SizedBox(height: 12),
+        ),
+      ],
+    );
 
-          // 6. Assinatura do operador
-          _tituloSecao('Assinatura do operador'),
-          const SizedBox(height: 6),
-          _buildAssinatura(assinaturaB64),
-          const SizedBox(height: 12),
+    final cardAssinatura = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tituloSecao('Assinatura do operador', icone: Icons.draw_outlined),
+        const SizedBox(height: 8),
+        _buildAssinatura(assinaturaB64),
+      ],
+    );
 
-          // 7. Metadados
-          _tituloSecao('Metadados do preenchimento'),
-          const SizedBox(height: 6),
-          _buildMetadados(d, itens),
-          const SizedBox(height: 12),
+    final cardMetadados = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tituloSecao(
+          'Metadados do preenchimento',
+          icone: Icons.info_outline_rounded,
+        ),
+        const SizedBox(height: 8),
+        _buildMetadados(d, itens),
+      ],
+    );
 
-          // 8. Linha do tempo (eventos)
-          _tituloSecao('Linha do tempo'),
-          const SizedBox(height: 6),
-          _buildLinhaDoTempo(eventos),
-        ],
+    final cardTimeline = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tituloSecao('Linha do tempo', icone: Icons.timeline_rounded),
+        const SizedBox(height: 8),
+        _buildLinhaDoTempo(eventos),
+      ],
+    );
+
+    return RefreshIndicator(
+      onRefresh: _carregar,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: Responsivo.paddingPagina(context),
+        child: ContainerResponsivo(
+          maxWidth: 1040,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 1. Faixa de resumo
+              _buildFaixaResumo(
+                qtdOk: itensOk.length,
+                qtdProblema: itensProblema.length,
+                qtdCriticos: qtdCriticos,
+                impedido: impedido,
+              ),
+              const SizedBox(height: 16),
+
+              // 2. Cabeçalho completo
+              _buildCabecalho(d, ehTablet),
+              const SizedBox(height: 20),
+
+              // 3. Itens com problema no topo (em destaque vermelho)
+              if (itensProblema.isNotEmpty) ...[
+                _tituloSecao(
+                  'Itens com problema (${itensProblema.length})',
+                  cor: TemaApp.perigo,
+                  icone: Icons.error_outline_rounded,
+                ),
+                const SizedBox(height: 8),
+                ...itensProblema.map(_buildCardItemProblema),
+                const SizedBox(height: 18),
+              ],
+
+              // 4. Todos os itens OK logo abaixo (seção já aberta)
+              _tituloSecao(
+                'Itens OK (${itensOk.length})',
+                icone: Icons.check_circle_outline_rounded,
+                cor: TemaApp.sucesso,
+              ),
+              const SizedBox(height: 8),
+              Card(
+                child: Column(
+                  children: [
+                    for (int i = 0; i < itensOk.length; i++) ...[
+                      _buildLinhaItemOk(itensOk[i]),
+                      if (i < itensOk.length - 1) const Divider(height: 1),
+                    ],
+                    if (itensOk.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('Nenhum item OK.'),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // 5 & 6. Observação geral + Assinatura do operador
+              if (ehTablet)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: cardObs),
+                    const SizedBox(width: 16),
+                    Expanded(child: cardAssinatura),
+                  ],
+                )
+              else ...[
+                cardObs,
+                const SizedBox(height: 20),
+                cardAssinatura,
+              ],
+              const SizedBox(height: 20),
+
+              // 7 & 8. Metadados + Linha do tempo
+              if (ehTablet)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: cardMetadados),
+                    const SizedBox(width: 16),
+                    Expanded(child: cardTimeline),
+                  ],
+                )
+              else ...[
+                cardMetadados,
+                const SizedBox(height: 20),
+                cardTimeline,
+              ],
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -311,75 +411,123 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
     required bool impedido,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: impedido ? Colors.red.shade50 : Colors.indigo.shade50,
-        borderRadius: BorderRadius.circular(12),
+        color: impedido ? TemaApp.perigoFundo : TemaApp.azulFundo,
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: impedido ? Colors.red.shade400 : Colors.indigo.shade200,
+          color: impedido ? TemaApp.perigo : TemaApp.azulAdmin,
+          width: 1.5,
         ),
       ),
       child: Row(
         children: [
+          Icon(
+            impedido
+                ? Icons.warning_amber_rounded
+                : Icons.fact_check_outlined,
+            color: impedido ? TemaApp.perigo : TemaApp.escuro,
+            size: 28,
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               '$qtdOk OK · $qtdProblema com problema · $qtdCriticos crítico${qtdCriticos == 1 ? '' : 's'}',
               style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-                color: impedido ? Colors.red.shade900 : Colors.indigo.shade900,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: impedido ? TemaApp.perigo : TemaApp.escuro,
               ),
             ),
           ),
           if (impedido)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.red.shade700,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                'IMPEDIDO',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
+            const SeloStatus(
+              texto: 'IMPEDIDO',
+              fundo: TemaApp.perigo,
+              corTexto: Colors.white,
             ),
         ],
       ),
     );
   }
 
-  Widget _buildCabecalho(Map<String, dynamic> d) {
+  Widget _buildCabecalho(Map<String, dynamic> d, bool ehTablet) {
+    final cab = (d['cabecalho'] is Map)
+        ? Map<String, dynamic>.from(d['cabecalho'] as Map)
+        : d;
     final operadorMap = d['operador'] as Map?;
     final operador = operadorMap?['nome'] ?? d['operador_nome'] ?? '-';
-    final horimetroIni = d['horimetro_inicial'] ?? d['horimetro_motor_inicial'] ?? '-';
-    final horimetroFim = d['horimetro_final'] ?? d['horimetro_motor_final'] ?? '-';
-    final combustivel = d['combustivel'] ?? d['nivel_combustivel'] ?? '-';
-    final entrada = d['hora_entrada'] ?? d['entrada'] ?? '-';
-    final saida = d['hora_saida'] ?? d['saida'] ?? '-';
+    final horimetroIni =
+        cab['horimetro_inicial'] ??
+        d['horimetro_inicial'] ??
+        d['horimetro_motor_inicial'] ??
+        '-';
+    final horimetroFim =
+        cab['horimetro_final'] ??
+        d['horimetro_final'] ??
+        d['horimetro_motor_final'] ??
+        '-';
+    final combustivel =
+        cab['combustivel_pct'] ??
+        d['combustivel_pct'] ??
+        d['combustivel'] ??
+        d['nivel_combustivel'] ??
+        '-';
+    final combustivelTexto = combustivel == '-' ? '-' : '$combustivel%';
+    final entrada = cab['hora_entrada'] ?? d['hora_entrada'] ?? d['entrada'] ?? '-';
+    final saida = cab['hora_saida'] ?? d['hora_saida'] ?? d['saida'] ?? '-';
+
+    final colunaEsq = [
+      _linhaInfo('Operador', '$operador'),
+      _linhaInfo('Equipamento', '${d['equipamento'] ?? '-'}'),
+      _linhaInfo('Local / Cais', '${d['local'] ?? '-'}'),
+      _linhaInfo('Navio', '${cab['navio'] ?? d['navio'] ?? '-'}'),
+    ];
+    final colunaDir = [
+      _linhaInfo(
+        'Turno / Data',
+        '${d['turno'] ?? '-'} · ${d['data_turno'] ?? '-'}',
+      ),
+      _linhaInfo('Horímetros', 'Inicial: $horimetroIni · Final: $horimetroFim'),
+      _linhaInfo('Combustível', combustivelTexto),
+      _linhaInfo('Entrada / Saída', '$entrada / $saida'),
+    ];
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Cabeçalho',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            const Row(
+              children: [
+                Icon(
+                  Icons.assignment_outlined,
+                  size: 20,
+                  color: TemaApp.escuro,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Cabeçalho do checklist',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                ),
+              ],
             ),
-            const Divider(),
-            _linhaInfo('Operador', '$operador'),
-            _linhaInfo('Equipamento', '${d['equipamento'] ?? '-'}'),
-            _linhaInfo('Local / Cais', '${d['local'] ?? '-'}'),
-            _linhaInfo('Navio', '${d['navio'] ?? '-'}'),
-            _linhaInfo('Turno / Data', '${d['turno'] ?? '-'} • ${d['data_turno'] ?? '-'}'),
-            _linhaInfo('Horímetros', 'Inicial: $horimetroIni • Final: $horimetroFim'),
-            _linhaInfo('Combustível', '$combustivel'),
-            _linhaInfo('Entrada / Saída', '$entrada / $saida'),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Divider(),
+            ),
+            if (ehTablet)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: Column(children: colunaEsq)),
+                  const SizedBox(width: 24),
+                  Expanded(child: Column(children: colunaDir)),
+                ],
+              )
+            else
+              Column(children: [...colunaEsq, ...colunaDir]),
           ],
         ),
       ),
@@ -387,69 +535,84 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
   }
 
   Widget _buildCardItemProblema(Map<String, dynamic> item) {
-    final ordem = item['ordem'] ?? item['numero'] ?? '';
+    final ordem = item['ordem'] ?? item['numero'] ?? item['item_numero'] ?? '';
     final titulo = item['titulo'] ?? item['descricao'] ?? 'Item';
     final critico = item['critico'] == true;
     final obs = (item['observacao'] ?? '').toString().trim();
 
-    return Card(
-      color: Colors.red.shade50,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: Colors.red.shade300),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.error, color: Colors.red.shade700, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${ordem.toString().isNotEmpty ? '$ordem. ' : ''}$titulo',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red.shade900,
-                    ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Card(
+        color: TemaApp.perigoFundo,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: TemaApp.perigo, width: 1.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.cancel_rounded,
+                    color: TemaApp.perigo,
+                    size: 22,
                   ),
-                ),
-                if (critico)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade700,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'CRÍTICO',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '${ordem.toString().isNotEmpty ? '$ordem. ' : ''}$titulo',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        color: TemaApp.perigo,
                       ),
                     ),
                   ),
-              ],
-            ),
-            if (obs.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Obs: $obs',
-                style: TextStyle(color: Colors.red.shade900),
+                  if (critico) ...[
+                    const SizedBox(width: 8),
+                    const SeloStatus(
+                      texto: 'CRÍTICO',
+                      fundo: TemaApp.perigo,
+                      corTexto: Colors.white,
+                    ),
+                  ],
+                ],
               ),
+              if (obs.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.78),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: TemaApp.perigoBorda),
+                  ),
+                  child: Text(
+                    'Observação: $obs',
+                    style: const TextStyle(
+                      color: TemaApp.textoPrimario,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildLinhaItemOk(Map<String, dynamic> item) {
-    final ordem = item['ordem'] ?? item['numero'] ?? '';
+    final ordem = item['ordem'] ?? item['numero'] ?? item['item_numero'] ?? '';
     final titulo = item['titulo'] ?? item['descricao'] ?? 'Item';
+    final resp = (item['resposta'] ?? 'S').toString().toUpperCase();
+    final ehNa = resp == 'NA';
     final origem = (item['origem'] ??
             (item['marcado_em_lote'] == true || item['lote'] == true
                 ? 'lote'
@@ -460,22 +623,37 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
 
     return ListTile(
       dense: true,
-      leading: Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
-      title: Text('${ordem.toString().isNotEmpty ? '$ordem. ' : ''}$titulo'),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: ehLote ? Colors.indigo.shade50 : Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(6),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      leading: Icon(
+        ehNa ? Icons.remove_circle_outline : Icons.check_circle_outline_rounded,
+        color: ehNa ? TemaApp.neutro : TemaApp.sucesso,
+        size: 22,
+      ),
+      title: Text(
+        '${ordem.toString().isNotEmpty ? '$ordem. ' : ''}$titulo',
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: TemaApp.textoPrimario,
         ),
-        child: Text(
-          ehLote ? 'lote' : 'manual',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: ehLote ? Colors.indigo.shade900 : Colors.grey.shade800,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (ehNa) ...[
+            const SeloStatus(
+              texto: 'N/A',
+              fundo: TemaApp.neutroFundo,
+              corTexto: TemaApp.neutro,
+            ),
+            const SizedBox(width: 6),
+          ],
+          SeloStatus(
+            texto: ehLote ? 'lote' : 'manual',
+            fundo: ehLote ? TemaApp.azulFundo : TemaApp.neutroFundo,
+            corTexto: ehLote ? TemaApp.escuro : TemaApp.textoSecundario,
           ),
-        ),
+        ],
       ),
     );
   }
@@ -495,47 +673,74 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
 
     return Card(
       child: Container(
-        height: 140,
+        height: 150,
         width: double.infinity,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
         child: bytes != null
             ? Image.memory(bytes, fit: BoxFit.contain)
-            : const Text('Sem assinatura registrada.'),
+            : const Text(
+                'Sem assinatura registrada.',
+                style: TextStyle(color: TemaApp.textoTerciario),
+              ),
       ),
     );
   }
 
   Widget _buildMetadados(Map<String, dynamic> d, List itens) {
-    final inicio = d['iniciado_em'] ?? d['inicio_preenchimento'] ?? '-';
-    final fim = d['finalizado_em'] ?? d['fim_preenchimento'] ?? '-';
+    final meta = (d['metadados'] is Map)
+        ? Map<String, dynamic>.from(d['metadados'] as Map)
+        : d;
+    final inicio =
+        meta['inicio_preenchimento_em'] ??
+        d['iniciado_em'] ??
+        d['inicio_preenchimento_em'] ??
+        d['inicio_preenchimento'] ??
+        '-';
+    final fim =
+        meta['finalizado_em'] ??
+        d['finalizado_em'] ??
+        d['fim_preenchimento'] ??
+        '-';
 
     int? segundos;
-    final rawTempo = d['tempo_preenchimento_seg'] ?? d['duracao_segundos'];
+    final rawTempo =
+        meta['duracao_segundos'] ??
+        d['tempo_preenchimento_seg'] ??
+        d['duracao_segundos'];
     if (rawTempo is int) {
       segundos = rawTempo;
     } else if (rawTempo is num) {
       segundos = rawTempo.toInt();
     }
 
-    final usouLote = d['usou_lote'] == true;
-    final qtdLote = d['qtd_itens_lote'] ??
+    final usouLote = meta['usou_lote'] == true || d['usou_lote'] == true;
+    final qtdLote =
+        meta['itens_marcados_lote'] ??
+        d['itens_marcados_lote'] ??
+        d['qtd_itens_lote'] ??
         itens
-            .where((i) =>
-                i['marcado_em_lote'] == true ||
-                i['lote'] == true ||
-                (i['origem']?.toString().toLowerCase() == 'lote'))
+            .where(
+              (i) =>
+                  i['marcado_em_lote'] == true ||
+                  i['lote'] == true ||
+                  (i['origem']?.toString().toLowerCase() == 'lote'),
+            )
             .length;
 
     final tempoTexto = segundos == null
         ? '-'
         : segundos < 60
-            ? '${segundos}s'
-            : '${segundos ~/ 60}min ${segundos % 60}s';
+        ? '${segundos}s'
+        : '${segundos ~/ 60}min ${segundos % 60}s';
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -544,18 +749,16 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
             _linhaInfo('Tempo total', tempoTexto),
             if (segundos != null && segundos < 60)
               Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 4),
-                child: Text(
-                  '⚠ preenchido em menos de 1 min',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.orange.shade900,
-                    fontStyle: FontStyle.italic,
-                  ),
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: const SeloStatus(
+                  texto: 'Preenchido em menos de 1 min',
+                  icone: Icons.schedule_rounded,
+                  fundo: TemaApp.ambarFundo,
+                  corTexto: TemaApp.ambarEscuro,
                 ),
               ),
             _linhaInfo(
-              'Preenchimento em lote',
+              'Uso de lote',
               usouLote ? 'Sim ($qtdLote itens)' : 'Não',
             ),
           ],
@@ -564,11 +767,11 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
     );
   }
 
-  Widget _buildLinhaDoTempo(List eventos) {
+  Widget _buildLinhaDoTempo(List<Map<String, dynamic>> eventos) {
     if (eventos.isEmpty) {
       return const Card(
         child: Padding(
-          padding: EdgeInsets.all(12),
+          padding: EdgeInsets.all(16),
           child: Text('Nenhum evento registrado.'),
         ),
       );
@@ -589,15 +792,26 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
   Widget _buildItemEvento(Map<String, dynamic> ev) {
     final tipo = (ev['tipo'] ?? ev['acao'] ?? 'Evento').toString();
     final autor = (ev['autor'] ?? ev['usuario'] ?? '').toString();
-    final data = (ev['em'] ?? ev['data_hora'] ?? ev['criado_em'] ?? '').toString();
+    final data = (ev['em'] ?? ev['data_hora'] ?? ev['criado_em'] ?? '')
+        .toString();
     final diff = ev['diff'] ?? ev['detalhes'] ?? ev['motivo'];
 
-    IconData icone = Icons.history;
+    IconData icone = Icons.history_rounded;
+    Color cor = TemaApp.azulAdmin;
     final tipoLower = tipo.toLowerCase();
-    if (tipoLower.contains('edit')) icone = Icons.edit;
-    if (tipoLower.contains('vist')) icone = Icons.verified;
-    if (tipoLower.contains('corre')) icone = Icons.report_problem;
-    if (tipoLower.contains('envi')) icone = Icons.send;
+    if (tipoLower.contains('edit')) {
+      icone = Icons.edit_outlined;
+      cor = TemaApp.ambarEscuro;
+    } else if (tipoLower.contains('vist')) {
+      icone = Icons.verified_outlined;
+      cor = TemaApp.sucesso;
+    } else if (tipoLower.contains('corre')) {
+      icone = Icons.report_problem_outlined;
+      cor = TemaApp.perigo;
+    } else if (tipoLower.contains('envi')) {
+      icone = Icons.send_outlined;
+      cor = TemaApp.escuro;
+    }
 
     final titulo = autor.isNotEmpty
         ? '$tipo por $autor${data.isNotEmpty ? ' — $data' : ''}'
@@ -605,10 +819,16 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
 
     return ListTile(
       dense: true,
-      leading: Icon(icone, size: 20),
-      title: Text(titulo),
+      leading: Icon(icone, size: 22, color: cor),
+      title: Text(
+        titulo,
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+      ),
       subtitle: diff != null && diff.toString().trim().isNotEmpty
-          ? Text(diff.toString())
+          ? Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(diff.toString()),
+            )
           : null,
     );
   }
@@ -622,22 +842,29 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
       final quando = d['vistado_em'] ?? '-';
       return SafeArea(
         child: Container(
-          padding: const EdgeInsets.all(14),
-          color: Colors.green.shade50,
-          child: Row(
-            children: [
-              Icon(Icons.lock, color: Colors.green.shade800),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Vistado por $quem em $quando — registro travado',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green.shade900,
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            color: TemaApp.sucessoFundo,
+            border: Border(top: BorderSide(color: TemaApp.sucessoBorda)),
+          ),
+          child: ContainerResponsivo(
+            maxWidth: 1040,
+            child: Row(
+              children: [
+                const Icon(Icons.lock_outline_rounded, color: TemaApp.sucesso),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Vistado por $quem em $quando — registro travado',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: TemaApp.sucesso,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -645,65 +872,92 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
 
     return SafeArea(
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(0, -2),
-            ),
-          ],
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        decoration: const BoxDecoration(
+          color: TemaApp.superficie,
+          border: Border(top: BorderSide(color: TemaApp.borda)),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _processandoAcao ? null : _solicitarCorrecao,
-                icon: const Icon(Icons.edit_note),
-                label: const Text('SOLICITAR CORREÇÃO'),
+        child: ContainerResponsivo(
+          maxWidth: 1040,
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 56,
+                  child: OutlinedButton.icon(
+                    onPressed: _processandoAcao ? null : _solicitarCorrecao,
+                    icon: const Icon(Icons.edit_note_rounded),
+                    label: const Text('SOLICITAR CORREÇÃO'),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: _processandoAcao ? null : _vistar,
-                icon: const Icon(Icons.verified),
-                label: const Text('VISTAR'),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 56,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: TemaApp.sucesso,
+                    ),
+                    onPressed: _processandoAcao ? null : _vistar,
+                    icon: const Icon(Icons.verified_outlined),
+                    label: const Text('VISTAR'),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _tituloSecao(String texto, {Color? cor}) {
-    return Text(
-      texto,
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.bold,
-        color: cor,
-      ),
+  Widget _tituloSecao(String texto, {Color? cor, IconData? icone}) {
+    return Row(
+      children: [
+        if (icone != null) ...[
+          Icon(icone, size: 20, color: cor ?? TemaApp.escuro),
+          const SizedBox(width: 8),
+        ],
+        Expanded(
+          child: Text(
+            texto,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: cor ?? TemaApp.textoPrimario,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _linhaInfo(String rotulo, String valor) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 130,
+            width: 126,
             child: Text(
               '$rotulo:',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: TemaApp.textoSecundario,
+              ),
             ),
           ),
-          Expanded(child: Text(valor)),
+          Expanded(
+            child: Text(
+              valor,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: TemaApp.textoPrimario,
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -2,6 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/responsivo.dart';
+import '../../core/tema_app.dart';
 import '../../data/remote/api.dart';
 import '../../domain/catalogo.dart';
 import '../auth/sessao.dart';
@@ -75,9 +77,8 @@ class _CabecalhoChecklist extends StatefulWidget {
 
 class _CabecalhoChecklistState extends State<_CabecalhoChecklist> {
   late final TextEditingController _horimetroInicial;
-  late final TextEditingController _horimetroFinal;
+  late final TextEditingController _combustivel;
   late final TextEditingController _navio;
-  late final TextEditingController _observacao;
 
   ChecklistEdicaoController get controller => widget.controller;
 
@@ -87,28 +88,29 @@ class _CabecalhoChecklistState extends State<_CabecalhoChecklist> {
     _horimetroInicial = TextEditingController(
       text: controller.horimetroInicial,
     );
-    _horimetroFinal = TextEditingController(text: controller.horimetroFinal);
+    _combustivel = TextEditingController(
+      text: controller.combustivelPct.toString(),
+    );
     _navio = TextEditingController(text: controller.navio);
-    _observacao = TextEditingController(text: controller.observacaoGeral);
     controller.addListener(_sincronizarSugestao);
   }
 
   void _sincronizarSugestao() {
     final valor = controller.horimetroInicial;
-    if (_horimetroInicial.text == valor) return;
-    _horimetroInicial.value = TextEditingValue(
-      text: valor,
-      selection: TextSelection.collapsed(offset: valor.length),
-    );
+    if (_horimetroInicial.text != valor) {
+      _horimetroInicial.value = TextEditingValue(
+        text: valor,
+        selection: TextSelection.collapsed(offset: valor.length),
+      );
+    }
   }
 
   @override
   void dispose() {
     controller.removeListener(_sincronizarSugestao);
     _horimetroInicial.dispose();
-    _horimetroFinal.dispose();
+    _combustivel.dispose();
     _navio.dispose();
-    _observacao.dispose();
     super.dispose();
   }
 
@@ -123,9 +125,8 @@ class _CabecalhoChecklistState extends State<_CabecalhoChecklist> {
     if (data != null) controller.definirData(data);
   }
 
-  Future<void> _selecionarHora({required bool entrada}) async {
-    final valor = entrada ? controller.horaEntrada : controller.horaSaida;
-    final partes = valor.split(':');
+  Future<void> _selecionarHoraEntrada() async {
+    final partes = controller.horaEntrada.split(':');
     final hora = await showTimePicker(
       context: context,
       initialTime: partes.length == 2
@@ -139,25 +140,25 @@ class _CabecalhoChecklistState extends State<_CabecalhoChecklist> {
     final formatada =
         '${hora.hour.toString().padLeft(2, '0')}:'
         '${hora.minute.toString().padLeft(2, '0')}';
-    if (entrada) {
-      controller.definirHoraEntrada(formatada);
-    } else {
-      controller.definirHoraSaida(formatada);
-    }
+    controller.definirHoraEntrada(formatada);
   }
 
   Future<void> _continuar() async {
     if (!controller.validarCabecalho()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.errosValidacao.join('\n'))),
+        SnackBar(
+          backgroundColor: TemaApp.perigo,
+          content: Text(controller.errosValidacao.join('\n')),
+        ),
       );
       return;
     }
     await controller.aguardarSalvamento();
     if (!mounted) return;
     if (controller.erroPersistencia != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(controller.erroPersistencia!)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(controller.erroPersistencia!)),
+      );
       return;
     }
     Navigator.of(context).push(
@@ -168,176 +169,334 @@ class _CabecalhoChecklistState extends State<_CabecalhoChecklist> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Cabeçalho do checklist')),
-    body: ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          controller.catalogo.titulo,
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<String>(
-          initialValue: controller.localId,
-          decoration: const InputDecoration(
-            labelText: 'Local',
-            border: OutlineInputBorder(),
+  Widget build(BuildContext context) {
+    final totalItens = controller.catalogo.itens.length;
+
+    return Scaffold(
+      backgroundColor: TemaApp.fundo,
+      appBar: AppBar(
+        title: const Text(
+          'PASSO 1/3 · CABEÇALHO',
+          style: TextStyle(
+            color: TemaApp.ambar,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.6,
           ),
-          items: [
-            for (final local in controller.catalogo.locais)
-              DropdownMenuItem(value: local.id, child: Text(local.nome)),
-          ],
-          onChanged: controller.selecionarLocal,
         ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final valor in controller.catalogo.turnos)
-              ChoiceChip(
-                label: Text(_rotuloTurno(valor)),
-                selected: controller.turno == valor,
-                onSelected: (_) => controller.definirTurno(valor),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: Responsivo.paddingPagina(context),
+        child: ContainerResponsivo(
+          maxWidth: 820,
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Equipamento (largura total, igual à ref image_2634bc.png)
+                  _rotulo('Equipamento (Guindaste)'),
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    initialValue: controller.equipamentoId,
+                    hint: const Text('Selecione o guindaste'),
+                    items: [
+                      for (final equipamento in controller.catalogo.equipamentos)
+                        DropdownMenuItem(
+                          value: equipamento.id,
+                          child: Text(equipamento.identificacao),
+                        ),
+                    ],
+                    onChanged: controller.selecionarEquipamento,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Local + Turno (lado a lado)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _rotulo('Local'),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: controller.localId,
+                              hint: const Text('Cais'),
+                              items: [
+                                for (final local in controller.catalogo.locais)
+                                  DropdownMenuItem(
+                                    value: local.id,
+                                    child: Text(local.nome),
+                                  ),
+                              ],
+                              onChanged: controller.selecionarLocal,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _rotulo('Turno'),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: controller.turno,
+                              items: [
+                                for (final valor in controller.catalogo.turnos)
+                                  DropdownMenuItem(
+                                    value: valor,
+                                    child: Text(_rotuloTurno(valor)),
+                                  ),
+                              ],
+                              onChanged: (v) {
+                                if (v != null) controller.definirTurno(v);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Data + Hora Entrada (lado a lado)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _rotulo('Data'),
+                            InkWell(
+                              onTap: _selecionarData,
+                              borderRadius: BorderRadius.circular(12),
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  suffixIcon: Icon(
+                                    Icons.calendar_today_outlined,
+                                    size: 18,
+                                  ),
+                                ),
+                                child: Text(
+                                  _dataFormatada(controller.dataTurno),
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _rotulo('Hora Entrada'),
+                            InkWell(
+                              onTap: _selecionarHoraEntrada,
+                              borderRadius: BorderRadius.circular(12),
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  suffixIcon: Icon(
+                                    Icons.schedule_rounded,
+                                    size: 18,
+                                  ),
+                                ),
+                                child: Text(
+                                  controller.horaEntrada,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Navio (Opcional)
+                  _rotulo('Navio (Opcional)'),
+                  TextField(
+                    controller: _navio,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      hintText: 'Ex.: MV Ocean Carrier',
+                    ),
+                    onChanged: controller.definirNavio,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Horímetro Inicial + Combustível (%) (lado a lado)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _rotulo('Horímetro Inicial'),
+                            TextField(
+                              controller: _horimetroInicial,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              inputFormatters: [_HorimetroInputFormatter()],
+                              decoration: const InputDecoration(
+                                hintText: 'Ex.: 36466.1',
+                              ),
+                              onChanged: controller.definirHorimetroInicial,
+                            ),
+                            if (controller.buscandoHorimetro) ...[
+                              const SizedBox(height: 6),
+                              const LinearProgressIndicator(),
+                            ],
+                            if (controller.sugestaoHorimetro != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: InkWell(
+                                  onTap: controller.aplicarSugestaoHorimetro,
+                                  child: Text(
+                                    'Sugerido do último turno (${controller.sugestaoHorimetro!.toStringAsFixed(1)})',
+                                    style: const TextStyle(
+                                      color: TemaApp.ambarEscuro,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (controller.avisoHorimetro != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  controller.avisoHorimetro!,
+                                  style: const TextStyle(
+                                    color: TemaApp.perigo,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _rotulo('Combustível (%)'),
+                            TextField(
+                              controller: _combustivel,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(3),
+                              ],
+                              decoration: const InputDecoration(
+                                hintText: '0 a 100',
+                                suffixText: '%',
+                              ),
+                              onChanged: (v) {
+                                final n = int.tryParse(v) ?? 0;
+                                controller.definirCombustivel(n.clamp(0, 100));
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Banner de erros de validação (se o usuário tentar avançar sem preencher)
+                  if (controller.errosValidacao.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: TemaApp.perigoFundo,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: TemaApp.perigoBorda),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final erro in controller.errosValidacao)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 3),
+                              child: Text(
+                                '• $erro',
+                                style: const TextStyle(
+                                  color: TemaApp.perigo,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  if (controller.erroPersistencia != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      controller.erroPersistencia!,
+                      style: const TextStyle(
+                        color: TemaApp.perigo,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 24),
+
+                  // BOTÃO SEMPRE CLICÁVEL (não bloqueia silenciosamente; valida ao tocar)
+                  SizedBox(
+                    height: 58,
+                    child: FilledButton(
+                      style: TemaApp.botaoAmbar,
+                      onPressed: _continuar,
+                      child: Text('Avançar para os $totalItens Itens →'),
+                    ),
+                  ),
+                ],
               ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: _selecionarData,
-          icon: const Icon(Icons.calendar_today),
-          label: Text('Data: ${_dataFormatada(controller.dataTurno)}'),
-        ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<String>(
-          initialValue: controller.equipamentoId,
-          decoration: const InputDecoration(
-            labelText: 'Equipamento',
-            border: OutlineInputBorder(),
-          ),
-          items: [
-            for (final equipamento in controller.catalogo.equipamentos)
-              DropdownMenuItem(
-                value: equipamento.id,
-                child: Text(equipamento.identificacao),
-              ),
-          ],
-          onChanged: controller.selecionarEquipamento,
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _navio,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            labelText: 'Navio (opcional)',
-            border: OutlineInputBorder(),
-          ),
-          onChanged: controller.definirNavio,
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _horimetroInicial,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [_HorimetroInputFormatter()],
-          decoration: const InputDecoration(
-            labelText: 'Horímetro inicial',
-            suffixText: 'h',
-            border: OutlineInputBorder(),
-            helperText: 'Use no máximo uma casa decimal.',
-          ),
-          onChanged: controller.definirHorimetroInicial,
-        ),
-        if (controller.buscandoHorimetro) ...[
-          const SizedBox(height: 8),
-          const LinearProgressIndicator(),
-        ],
-        if (controller.sugestaoHorimetro != null) ...[
-          TextButton.icon(
-            onPressed: controller.aplicarSugestaoHorimetro,
-            icon: const Icon(Icons.history),
-            label: Text(
-              'Usar último horímetro: '
-              '${controller.sugestaoHorimetro!.toStringAsFixed(1)}',
             ),
           ),
-        ],
-        if (controller.avisoHorimetro != null)
-          Text(
-            controller.avisoHorimetro!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        const SizedBox(height: 16),
-        Text(
-          'Combustível: ${controller.combustivelPct}%',
-          style: Theme.of(context).textTheme.titleMedium,
         ),
-        Slider(
-          value: controller.combustivelPct.toDouble(),
-          min: 0,
-          max: 100,
-          divisions: 100,
-          label: '${controller.combustivelPct}%',
-          onChanged: (valor) => controller.definirCombustivel(valor.round()),
+      ),
+    );
+  }
+
+  Widget _rotulo(String texto) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        texto,
+        style: const TextStyle(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w700,
+          color: TemaApp.textoPrimario,
         ),
-        OutlinedButton.icon(
-          onPressed: () => _selecionarHora(entrada: true),
-          icon: const Icon(Icons.login),
-          label: Text('Hora de entrada: ${controller.horaEntrada}'),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: () => _selecionarHora(entrada: false),
-          icon: const Icon(Icons.logout),
-          label: Text(
-            controller.horaSaida.isEmpty
-                ? 'Hora de saída (opcional)'
-                : 'Hora de saída: ${controller.horaSaida}',
-          ),
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _horimetroFinal,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [_HorimetroInputFormatter()],
-          decoration: const InputDecoration(
-            labelText: 'Horímetro final (opcional nesta etapa)',
-            suffixText: 'h',
-            border: OutlineInputBorder(),
-          ),
-          onChanged: controller.definirHorimetroFinal,
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _observacao,
-          minLines: 2,
-          maxLines: 4,
-          decoration: const InputDecoration(
-            labelText: 'Observação geral (opcional)',
-            border: OutlineInputBorder(),
-          ),
-          onChanged: controller.definirObservacaoGeral,
-        ),
-        if (controller.erroPersistencia != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            controller.erroPersistencia!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        ],
-        const SizedBox(height: 24),
-        SizedBox(
-          height: 56,
-          child: FilledButton.icon(
-            onPressed: controller.cabecalhoValido ? _continuar : null,
-            icon: const Icon(Icons.arrow_forward),
-            label: const Text('Continuar para os itens'),
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
 class _HorimetroInputFormatter extends TextInputFormatter {
@@ -354,10 +513,10 @@ class _HorimetroInputFormatter extends TextInputFormatter {
 }
 
 String _rotuloTurno(String turno) => switch (turno) {
-  'T_08_14' => '08–14',
-  'T_14_20' => '14–20',
-  'T_20_02' => '20–02',
-  'T_02_08' => '02–08',
+  'T_08_14' => '08×14',
+  'T_14_20' => '14×20',
+  'T_20_02' => '20×02',
+  'T_02_08' => '02×08',
   _ => turno,
 };
 
