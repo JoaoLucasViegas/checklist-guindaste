@@ -26,6 +26,7 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
   late final TextEditingController _horimetroFinal;
   late final TextEditingController _observacao;
   String? _erroSincronizacao;
+  bool _confirmouCorrecoes = false;
 
   ChecklistEdicaoController get controller => widget.controller;
 
@@ -68,6 +69,15 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
   }
 
   Future<void> _finalizar() async {
+    if (controller.modoEdicao && !_confirmouCorrecoes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Marque "Confirmo as correções" para salvar.'),
+        ),
+      );
+      return;
+    }
+
     final bytes = _assinatura.isNotEmpty
         ? await _assinatura.toPngBytes()
         : null;
@@ -270,16 +280,83 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
               letterSpacing: 0.6,
             ),
           ),
-          centerTitle: true,
-        ),
-        body: SingleChildScrollView(
-          padding: Responsivo.paddingPagina(context),
-          child: ContainerResponsivo(
-            maxWidth: 1040,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: controller.enviando ? null : _selecionarHoraSaida,
+            icon: const Icon(Icons.logout),
+            label: Text('Hora de saída: ${controller.horaSaida}'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            enabled: !controller.enviando,
+            controller: _observacao,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'Observação geral (opcional)',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: controller.definirObservacaoGeral,
+          ),
+          const SizedBox(height: 20),
+          if (controller.modoEdicao) ...[
+            Card(
+              color: Colors.amber.shade50,
+              child: CheckboxListTile(
+                value: _confirmouCorrecoes,
+                onChanged: controller.enviando
+                    ? null
+                    : (v) => setState(() => _confirmouCorrecoes = v ?? false),
+                title: const Text(
+                  'Confirmo as correções',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: const Text(
+                  'A assinatura original será mantida — não é necessário assinar novamente.',
+                ),
+              ),
+            ),
+          ] else ...[
+            Text(
+              'Assinatura do operador',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Container(
+              height: 190,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: IgnorePointer(
+                ignoring: controller.enviando,
+                child: Signature(
+                  controller: _assinatura,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: controller.enviando ? null : _assinatura.clear,
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Limpar assinatura'),
+              ),
+            ),
+          ],
+          if (controller.errosValidacao.isNotEmpty ||
+              controller.erro != null) ...[
+            const SizedBox(height: 8),
+            Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: _metricaResumo(
@@ -414,18 +491,38 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
               color: TemaApp.superficie,
               border: Border(top: BorderSide(color: TemaApp.borda)),
             ),
-            child: ContainerResponsivo(
-              maxWidth: 1040,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Salvo no aparelho primeiro; o envio ocorre automaticamente quando houver conexão.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: TemaApp.textoSecundario,
-                    ),
+          ],
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Salvo no aparelho primeiro; o envio ocorre quando houver conexão.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: controller.enviando ? null : _finalizar,
+                  icon: controller.enviando
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    controller.enviando
+                        ? 'Salvando…'
+                        : (controller.modoEdicao
+                              ? 'Confirmo as correções'
+                              : 'Finalizar e salvar'),
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
