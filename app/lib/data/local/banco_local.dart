@@ -13,6 +13,9 @@ class BancoLocal {
     return openDatabase(
       join(await getDatabasesPath(), 'checklist.db'),
       version: 1,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA busy_timeout = 5000');
+      },
       onCreate: (db, _) async {
         await db.execute(
           'CREATE TABLE cache(chave TEXT PRIMARY KEY, json TEXT NOT NULL)',
@@ -120,6 +123,16 @@ class BancoLocal {
           atualizado_em = ?
       WHERE id = ?''',
       [erro, status, DateTime.now().toUtc().toIso8601String(), id],
+    );
+  }
+
+  /// Remove um rascunho local (apenas se ainda estiver em status RASCUNHO).
+  static Future<void> removerRascunho(String id) async {
+    final db = await abrir();
+    await db.delete(
+      'checklists',
+      where: 'id = ? AND status = ?',
+      whereArgs: [id, 'RASCUNHO'],
     );
   }
 

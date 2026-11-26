@@ -13,8 +13,9 @@ import 'checklist_edicao_controller.dart';
 
 class ChecklistFinalizacaoPage extends StatefulWidget {
   final ChecklistEdicaoController controller;
+  final String? motivoCorrecao;
 
-  const ChecklistFinalizacaoPage({super.key, required this.controller});
+  const ChecklistFinalizacaoPage({super.key, required this.controller, this.motivoCorrecao});
 
   @override
   State<ChecklistFinalizacaoPage> createState() =>
@@ -26,7 +27,6 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
   late final TextEditingController _horimetroFinal;
   late final TextEditingController _observacao;
   String? _erroSincronizacao;
-  bool _confirmouCorrecoes = false;
 
   ChecklistEdicaoController get controller => widget.controller;
 
@@ -69,21 +69,23 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
   }
 
   Future<void> _finalizar() async {
-    if (controller.modoEdicao && !_confirmouCorrecoes) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Marque "Confirmo as correções" para salvar.'),
-        ),
-      );
-      return;
-    }
-
     final bytes = _assinatura.isNotEmpty
         ? await _assinatura.toPngBytes()
         : null;
     final assinaturaBase64 = bytes == null ? '' : base64Encode(bytes);
     final valido = await controller.finalizar(assinaturaBase64);
-    if (!mounted || !valido) return;
+    if (!mounted) return;
+    if (!valido) {
+      final listaErros = controller.errosValidacao.isNotEmpty
+          ? controller.errosValidacao
+          : [controller.erro ?? 'Revise os campos obrigatórios.'];
+      await mostrarDialogoErros(
+        context,
+        titulo: 'Não foi possível finalizar',
+        erros: listaErros,
+      );
+      return;
+    }
 
     final sincronizador = context.read<Sincronizador>();
     try {
@@ -244,6 +246,19 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
                   ),
                 ],
               ),
+              if (controller.modoEdicao &&
+                  controller.assinaturaExistente != null &&
+                  controller.assinaturaExistente!.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                const Text(
+                  'A assinatura original já está registrada e será mantida. Assine abaixo apenas se desejar substituí-la.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: TemaApp.sucesso,
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               Container(
                 height: ehTablet ? 240 : 190,
@@ -280,83 +295,51 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
               letterSpacing: 0.6,
             ),
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: controller.enviando ? null : _selecionarHoraSaida,
-            icon: const Icon(Icons.logout),
-            label: Text('Hora de saída: ${controller.horaSaida}'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            enabled: !controller.enviando,
-            controller: _observacao,
-            minLines: 2,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: 'Observação geral (opcional)',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: controller.definirObservacaoGeral,
-          ),
-          const SizedBox(height: 20),
-          if (controller.modoEdicao) ...[
-            Card(
-              color: Colors.amber.shade50,
-              child: CheckboxListTile(
-                value: _confirmouCorrecoes,
-                onChanged: controller.enviando
-                    ? null
-                    : (v) => setState(() => _confirmouCorrecoes = v ?? false),
-                title: const Text(
-                  'Confirmo as correções',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: const Text(
-                  'A assinatura original será mantida — não é necessário assinar novamente.',
-                ),
+          centerTitle: true,
+        ),
+        body: Column(
+          children: [
+            if (controller.errosValidacao.isNotEmpty)
+              BarraNotificacaoErro(
+                mensagem: controller.errosValidacao.join(' · '),
+              )
+            else if (controller.erro != null || _erroSincronizacao != null)
+              BarraNotificacaoErro(
+                mensagem: controller.erro ?? _erroSincronizacao!,
               ),
-            ),
-          ] else ...[
-            Text(
-              'Assinatura do operador',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Container(
-              height: 190,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outline,
+            if (controller.emCorrecaoSolicitada &&
+                widget.motivoCorrecao != null &&
+                widget.motivoCorrecao!.trim().isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
                 ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: IgnorePointer(
-                ignoring: controller.enviando,
-                child: Signature(
-                  controller: _assinatura,
-                  backgroundColor: Colors.white,
+                decoration: const BoxDecoration(
+                  color: TemaApp.ambarFundo,
+                  border: Border(
+                    bottom: BorderSide(color: TemaApp.ambarEscuro, width: 1.5),
+                  ),
+                ),
+                child: Text(
+                  'Correção solicitada: ${widget.motivoCorrecao}',
+                  style: const TextStyle(
+                    color: TemaApp.textoPrimario,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13.5,
+                  ),
                 ),
               ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: controller.enviando ? null : _assinatura.clear,
-                icon: const Icon(Icons.delete_outline),
-                label: const Text('Limpar assinatura'),
-              ),
-            ),
-          ],
-          if (controller.errosValidacao.isNotEmpty ||
-              controller.erro != null) ...[
-            const SizedBox(height: 8),
-            Card(
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            Expanded(
+              child: SingleChildScrollView(
+                padding: Responsivo.paddingPagina(context),
+          child: ContainerResponsivo(
+            maxWidth: 1040,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   children: [
                     Expanded(
                       child: _metricaResumo(
@@ -470,76 +453,47 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
                     ),
                   ),
                 ],
-                if (_erroSincronizacao != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _erroSincronizacao!,
-                    style: const TextStyle(
-                      color: TemaApp.perigo,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
         ),
-        bottomNavigationBar: SafeArea(
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-            decoration: const BoxDecoration(
-              color: TemaApp.superficie,
-              border: Border(top: BorderSide(color: TemaApp.borda)),
-            ),
-          ],
-        ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Salvo no aparelho primeiro; o envio ocorre quando houver conexão.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: FilledButton.icon(
-                  onPressed: controller.enviando ? null : _finalizar,
-                  icon: controller.enviando
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save),
-                  label: Text(
-                    controller.enviando
-                        ? 'Salvando…'
-                        : (controller.modoEdicao
-                              ? 'Confirmo as correções'
-                              : 'Finalizar e salvar'),
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Salvo no aparelho primeiro; o envio ocorre automaticamente quando houver conexão.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: TemaApp.textoSecundario,
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: FilledButton(
-                      style: TemaApp.botaoAmbar,
-                      onPressed: controller.enviando ? null : _finalizar,
-                      child: Text(
-                        controller.enviando
-                            ? 'Salvando…'
-                            : 'Finalizar e Salvar',
-                      ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: FilledButton(
+                    style: TemaApp.botaoAmbar,
+                    onPressed: controller.enviando ? null : _finalizar,
+                    child: Text(
+                      controller.enviando
+                          ? 'Salvando…'
+                          : controller.emCorrecaoSolicitada
+                          ? 'Confirmo as correções'
+                          : controller.modoEdicao
+                          ? 'Salvar alterações'
+                          : 'Finalizar e Salvar',
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

@@ -8,7 +8,8 @@ import 'checklist_finalizacao_page.dart';
 
 class ChecklistItensPage extends StatelessWidget {
   final ChecklistEdicaoController controller;
-  const ChecklistItensPage({super.key, required this.controller});
+  final String? motivoCorrecao;
+  const ChecklistItensPage({super.key, required this.controller, this.motivoCorrecao});
 
   Future<void> _confirmarMarcarTudoOk(BuildContext context) async {
     final confirmar = await showDialog<bool>(
@@ -206,6 +207,10 @@ class ChecklistItensPage extends StatelessWidget {
         ),
         body: Column(
           children: [
+            if (controller.erro != null || controller.erroPersistencia != null)
+              BarraNotificacaoErro(
+                mensagem: controller.erro ?? controller.erroPersistencia!,
+              ),
             // Barra de progresso + Marcar tudo OK
             Container(
               color: TemaApp.superficie,
@@ -323,57 +328,41 @@ class ChecklistItensPage extends StatelessWidget {
                 },
               ),
             ),
-            if (controller.erro != null || controller.erroPersistencia != null)
-              Container(
-                width: double.infinity,
-                color: TemaApp.perigoFundo,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Text(
-                  controller.erro ?? controller.erroPersistencia!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: TemaApp.perigo,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: TemaApp.superficie,
+                border: Border(top: BorderSide(color: TemaApp.borda)),
               ),
-          ],
-        ),
-        bottomNavigationBar: SafeArea(
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-            decoration: const BoxDecoration(
-              color: TemaApp.superficie,
-              border: Border(top: BorderSide(color: TemaApp.borda)),
-            ),
-            child: ContainerResponsivo(
-              maxWidth: 960,
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: FilledButton(
-                  style: TemaApp.botaoAmbar,
-                  onPressed: controller.enviando || controller.finalizado
-                      ? null
-                      : () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => ChecklistFinalizacaoPage(
-                              controller: controller,
+              child: SafeArea(
+                top: false,
+                minimum: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: FilledButton(
+                    style: TemaApp.botaoAmbar,
+                    onPressed: controller.enviando || controller.finalizado
+                        ? null
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ChecklistFinalizacaoPage(
+                                controller: controller,
+                                motivoCorrecao: motivoCorrecao,
+                              ),
                             ),
                           ),
-                        ),
-                  child: Text(
-                    controller.enviando
-                        ? 'Finalizando…'
-                        : 'Avançar para Finalização →',
+                    child: Text(
+                      controller.enviando
+                          ? 'Finalizando…'
+                          : 'Avançar para Finalização →',
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
       );
     },

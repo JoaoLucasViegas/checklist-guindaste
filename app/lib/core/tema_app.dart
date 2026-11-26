@@ -288,3 +288,114 @@ class SeloStatus extends StatelessWidget {
     );
   }
 }
+
+/// Barra de notificação de erro para exibição no TOPO das telas do operador,
+/// garantindo visibilidade imediata sem ficar escondida no rodapé.
+class BarraNotificacaoErro extends StatelessWidget {
+  final String mensagem;
+  final VoidCallback? onFechar;
+
+  const BarraNotificacaoErro({
+    super.key,
+    required this.mensagem,
+    this.onFechar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: const BoxDecoration(
+        color: TemaApp.perigoFundo,
+        border: Border(
+          bottom: BorderSide(color: TemaApp.perigoBorda, width: 1.5),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: Icon(
+              Icons.error_outline_rounded,
+              color: TemaApp.perigo,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              mensagem,
+              style: const TextStyle(
+                color: TemaApp.perigo,
+                fontWeight: FontWeight.w700,
+                fontSize: 13.5,
+                height: 1.35,
+              ),
+            ),
+          ),
+          if (onFechar != null)
+            InkWell(
+              onTap: onFechar,
+              borderRadius: BorderRadius.circular(16),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: TemaApp.perigo,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dialog-box de alto contraste para destacar erros de validação ao operador.
+Future<void> mostrarDialogoErros(
+  BuildContext context, {
+  required String titulo,
+  required List<String> erros,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      icon: const Icon(
+        Icons.error_outline_rounded,
+        color: TemaApp.perigo,
+        size: 34,
+      ),
+      title: Text(titulo),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final erro in erros)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '• $erro',
+                  style: const TextStyle(
+                    color: TemaApp.textoPrimario,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14.5,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        FilledButton(
+          style: TemaApp.botaoAmbar,
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Entendi'),
+        ),
+      ],
+    ),
+  );
+}

@@ -13,17 +13,21 @@ class Responsivo {
   static bool ehTabletGrande(BuildContext context) =>
       MediaQuery.sizeOf(context).width >= breakpointTabletGrande;
 
+  /// Padding padrão respeitando a barra de navegação do sistema (Android).
   static EdgeInsets paddingPagina(BuildContext context) {
     final tablet = ehTablet(context);
-    return EdgeInsets.symmetric(
-      horizontal: tablet ? 24 : 16,
-      vertical: tablet ? 20 : 16,
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    return EdgeInsets.fromLTRB(
+      tablet ? 24 : 16,
+      tablet ? 20 : 16,
+      tablet ? 24 : 16,
+      (tablet ? 24 : 20) + bottomInset,
     );
   }
 }
 
 /// Centraliza horizontalmente o conteúdo em tablets sem expandir verticalmente
-/// (seguro inclusive dentro de bottomNavigationBar e headers).
+/// (seguro inclusive dentro de headers e rodapés).
 class ContainerResponsivo extends StatelessWidget {
   final Widget child;
   final double maxWidth;

@@ -415,7 +415,9 @@ class _ItemChecklistCard extends StatelessWidget {
     final impedido = item['impedido'] == true;
     final usouLote = item['usou_lote'] == true;
     final editado = item['editado'] == true;
-    final status = (item['status'] ?? '').toString().toUpperCase();
+    final status = (item['status'] ?? 'ENVIADO').toString().toUpperCase();
+    final ehVistado = status == 'VISTADO';
+    final ehCorrecao = status == 'CORRECAO_SOLICITADA';
 
     final operadorMap = item['operador'] as Map?;
     final operadorNome = operadorMap?['nome']?.toString() ?? 'Operador';
@@ -427,7 +429,11 @@ class _ItemChecklistCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: impedido ? TemaApp.perigoFundo : TemaApp.superficie,
+        color: impedido && !ehVistado
+            ? TemaApp.perigoFundo
+            : ehCorrecao
+            ? const Color(0xFFFFFBEB)
+            : TemaApp.superficie,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
@@ -437,80 +443,116 @@ class _ItemChecklistCard extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: impedido ? TemaApp.perigo : TemaApp.borda,
-                width: impedido ? 1.8 : 1.2,
+                color: impedido && !ehVistado
+                    ? TemaApp.perigo
+                    : ehCorrecao
+                    ? TemaApp.ambarEscuro
+                    : ehVistado
+                    ? TemaApp.sucessoBorda
+                    : TemaApp.borda,
+                width: (impedido && !ehVistado) || ehCorrecao ? 1.8 : 1.2,
               ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _iconeStatusChecklist(status, impedido: impedido),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (impedido)
-                            const SeloStatus(
-                              texto: 'IMPEDIDO',
-                              fundo: TemaApp.perigo,
-                              corTexto: Colors.white,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    if (impedido)
+                                      const SeloStatus(
+                                        texto: 'IMPEDIDO',
+                                        icone: Icons.warning_amber_rounded,
+                                        fundo: TemaApp.perigo,
+                                        corTexto: Colors.white,
+                                      ),
+                                    if (ehVistado)
+                                      const SeloStatus(
+                                        texto: 'VISTADO',
+                                        icone: Icons.verified_outlined,
+                                        fundo: TemaApp.sucessoFundo,
+                                        corTexto: TemaApp.sucesso,
+                                      )
+                                    else if (ehCorrecao)
+                                      const SeloStatus(
+                                        texto: 'CORREÇÃO',
+                                        icone: Icons.edit_note_rounded,
+                                        fundo: TemaApp.ambarFundo,
+                                        corTexto: TemaApp.ambarEscuro,
+                                      )
+                                    else
+                                      const SeloStatus(
+                                        texto: 'Pendente',
+                                        icone: Icons.pending_actions_rounded,
+                                        fundo: TemaApp.azulFundo,
+                                        corTexto: TemaApp.azulAdmin,
+                                      ),
+                                    if (usouLote)
+                                      const SeloStatus(
+                                        texto: 'lote',
+                                        icone: Icons.done_all_rounded,
+                                        fundo: TemaApp.ambarFundo,
+                                        corTexto: TemaApp.ambarEscuro,
+                                        borda: TemaApp.ambarBorda,
+                                      ),
+                                    if (editado)
+                                      const SeloStatus(
+                                        texto: 'Editado',
+                                        icone: Icons.edit_outlined,
+                                        fundo: TemaApp.azulFundo,
+                                        corTexto: TemaApp.azulAdmin,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                dataTurno,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: TemaApp.textoTerciario,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            equipamento,
+                            style: TextStyle(
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.w800,
+                              color: impedido && !ehVistado
+                                  ? TemaApp.perigo
+                                  : TemaApp.textoPrimario,
                             ),
-                          if (usouLote)
-                            const SeloStatus(
-                              texto: 'lote',
-                              fundo: TemaApp.ambarFundo,
-                              corTexto: TemaApp.ambarEscuro,
-                              borda: TemaApp.ambarBorda,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$operadorNome · $local · Turno $turno',
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              color: TemaApp.textoSecundario,
                             ),
-                          if (status == 'VISTADO')
-                            const SeloStatus(
-                              texto: 'VISTADO',
-                              fundo: TemaApp.sucessoFundo,
-                              corTexto: TemaApp.sucesso,
-                            )
-                          else if (status == 'CORRECAO_SOLICITADA')
-                            const SeloStatus(
-                              texto: 'CORREÇÃO',
-                              fundo: TemaApp.ambarFundo,
-                              corTexto: TemaApp.ambarEscuro,
-                            ),
-                          if (editado)
-                            const SeloStatus(
-                              texto: 'Editado',
-                              fundo: TemaApp.azulFundo,
-                              corTexto: TemaApp.azulAdmin,
-                            ),
+                          ),
                         ],
                       ),
                     ),
-                    Text(
-                      dataTurno,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: TemaApp.textoTerciario,
-                      ),
-                    ),
                   ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  equipamento,
-                  style: TextStyle(
-                    fontSize: 16.5,
-                    fontWeight: FontWeight.w800,
-                    color: impedido ? TemaApp.perigo : TemaApp.textoPrimario,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$operadorNome · $local · Turno $turno',
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    color: TemaApp.textoSecundario,
-                  ),
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 10),
@@ -519,19 +561,86 @@ class _ItemChecklistCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text(
-                      'Conferir itens →',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        color: impedido ? TemaApp.perigo : TemaApp.azulAdmin,
+                    if (ehVistado) ...[
+                      const Icon(
+                        Icons.lock_outline_rounded,
+                        size: 14,
+                        color: TemaApp.sucesso,
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'Vistado · Ver registro →',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: TemaApp.sucesso,
+                        ),
+                      ),
+                    ] else
+                      Text(
+                        'Conferir itens →',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: impedido ? TemaApp.perigo : TemaApp.azulAdmin,
+                        ),
+                      ),
                   ],
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconeStatusChecklist(String status, {required bool impedido}) {
+    final (IconData icone, Color cor, Color fundo, Color borda, String dica) =
+        switch (status) {
+          'VISTADO' => (
+            Icons.verified_rounded,
+            TemaApp.sucesso,
+            TemaApp.sucessoFundo,
+            TemaApp.sucessoBorda,
+            'Vistado e travado',
+          ),
+          'CORRECAO_SOLICITADA' => (
+            Icons.edit_note_rounded,
+            TemaApp.ambarEscuro,
+            TemaApp.ambarFundo,
+            TemaApp.ambarBorda,
+            'Correção solicitada',
+          ),
+          _ when impedido => (
+            Icons.warning_amber_rounded,
+            Colors.white,
+            TemaApp.perigo,
+            TemaApp.perigo,
+            'Equipamento impedido',
+          ),
+          _ => (
+            Icons.pending_actions_rounded,
+            TemaApp.azulAdmin,
+            TemaApp.azulFundo,
+            TemaApp.azulBorda,
+            'Pendente de visto',
+          ),
+        };
+
+    return Tooltip(
+      message: dica,
+      child: Semantics(
+        label: dica,
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: fundo,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borda, width: 1.2),
+          ),
+          child: Icon(icone, color: cor, size: 24),
         ),
       ),
     );

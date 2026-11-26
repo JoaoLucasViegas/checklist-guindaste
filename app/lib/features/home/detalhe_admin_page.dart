@@ -847,24 +847,21 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
             color: TemaApp.sucessoFundo,
             border: Border(top: BorderSide(color: TemaApp.sucessoBorda)),
           ),
-          child: ContainerResponsivo(
-            maxWidth: 1040,
-            child: Row(
-              children: [
-                const Icon(Icons.lock_outline_rounded, color: TemaApp.sucesso),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Vistado por $quem em $quando — registro travado',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: TemaApp.sucesso,
-                      fontSize: 15,
-                    ),
+          child: Row(
+            children: [
+              const Icon(Icons.lock_outline_rounded, color: TemaApp.sucesso),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Vistado por $quem em $quando — registro travado',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: TemaApp.sucesso,
+                    fontSize: 15,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );
@@ -877,36 +874,33 @@ class _DetalheAdminPageState extends State<DetalheAdminPage> {
           color: TemaApp.superficie,
           border: Border(top: BorderSide(color: TemaApp.borda)),
         ),
-        child: ContainerResponsivo(
-          maxWidth: 1040,
-          child: Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 56,
-                  child: OutlinedButton.icon(
-                    onPressed: _processandoAcao ? null : _solicitarCorrecao,
-                    icon: const Icon(Icons.edit_note_rounded),
-                    label: const Text('SOLICITAR CORREÇÃO'),
-                  ),
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 56,
+                child: OutlinedButton.icon(
+                  onPressed: _processandoAcao ? null : _solicitarCorrecao,
+                  icon: const Icon(Icons.edit_note_rounded),
+                  label: const Text('SOLICITAR CORREÇÃO'),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 56,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: TemaApp.sucesso,
-                    ),
-                    onPressed: _processandoAcao ? null : _vistar,
-                    icon: const Icon(Icons.verified_outlined),
-                    label: const Text('VISTAR'),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SizedBox(
+                height: 56,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: TemaApp.sucesso,
                   ),
+                  onPressed: _processandoAcao ? null : _vistar,
+                  icon: const Icon(Icons.verified_outlined),
+                  label: const Text('VISTAR'),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

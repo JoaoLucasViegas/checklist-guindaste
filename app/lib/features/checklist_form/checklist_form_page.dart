@@ -15,6 +15,7 @@ class ChecklistFormPage extends StatefulWidget {
   final String? rascunhoId;
   final bool modoEdicao;
   final bool emCorrecaoSolicitada;
+  final String? motivoCorrecao;
 
   const ChecklistFormPage({
     super.key,
@@ -22,6 +23,7 @@ class ChecklistFormPage extends StatefulWidget {
     this.rascunhoId,
     this.modoEdicao = false,
     this.emCorrecaoSolicitada = false,
+    this.motivoCorrecao,
   });
 
   @override
@@ -71,7 +73,7 @@ class _ChecklistFormPageState extends State<ChecklistFormPage> {
             ),
           );
         }
-        return _CabecalhoChecklist(controller: controller);
+        return _CabecalhoChecklist(controller: controller, motivoCorrecao: widget.motivoCorrecao);
       },
     ),
   );
@@ -79,7 +81,8 @@ class _ChecklistFormPageState extends State<ChecklistFormPage> {
 
 class _CabecalhoChecklist extends StatefulWidget {
   final ChecklistEdicaoController controller;
-  const _CabecalhoChecklist({required this.controller});
+  final String? motivoCorrecao;
+  const _CabecalhoChecklist({required this.controller, this.motivoCorrecao});
 
   @override
   State<_CabecalhoChecklist> createState() => _CabecalhoChecklistState();
@@ -155,25 +158,29 @@ class _CabecalhoChecklistState extends State<_CabecalhoChecklist> {
 
   Future<void> _continuar() async {
     if (!controller.validarCabecalho()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: TemaApp.perigo,
-          content: Text(controller.errosValidacao.join('\n')),
-        ),
+      await mostrarDialogoErros(
+        context,
+        titulo: 'Campos pendentes no cabeçalho',
+        erros: controller.errosValidacao,
       );
       return;
     }
     await controller.aguardarSalvamento();
     if (!mounted) return;
     if (controller.erroPersistencia != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.erroPersistencia!)),
+      await mostrarDialogoErros(
+        context,
+        titulo: 'Erro ao salvar rascunho',
+        erros: [controller.erroPersistencia!],
       );
       return;
     }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ChecklistItensPage(controller: controller),
+        builder: (_) => ChecklistItensPage(
+          controller: controller,
+          motivoCorrecao: widget.motivoCorrecao,
+        ),
       ),
     );
   }
@@ -196,8 +203,50 @@ class _CabecalhoChecklistState extends State<_CabecalhoChecklist> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: Responsivo.paddingPagina(context),
+      body: Column(
+        children: [
+          if (controller.errosValidacao.isNotEmpty)
+            BarraNotificacaoErro(
+              mensagem: controller.errosValidacao.join(' · '),
+            )
+          else if (controller.erroPersistencia != null)
+            BarraNotificacaoErro(mensagem: controller.erroPersistencia!),
+          if (controller.emCorrecaoSolicitada &&
+              widget.motivoCorrecao != null &&
+              widget.motivoCorrecao!.trim().isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: const BoxDecoration(
+                color: TemaApp.ambarFundo,
+                border: Border(
+                  bottom: BorderSide(color: TemaApp.ambarEscuro, width: 1.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: TemaApp.ambarEscuro,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Correção solicitada: ${widget.motivoCorrecao}',
+                      style: const TextStyle(
+                        color: TemaApp.textoPrimario,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: Responsivo.paddingPagina(context),
         child: ContainerResponsivo(
           maxWidth: 820,
           child: Card(
@@ -490,6 +539,9 @@ class _CabecalhoChecklistState extends State<_CabecalhoChecklist> {
             ),
           ),
         ),
+      ),
+    ),
+        ],
       ),
     );
   }
