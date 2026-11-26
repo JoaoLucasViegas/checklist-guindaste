@@ -11,8 +11,16 @@ import 'checklist_itens_page.dart';
 class ChecklistFormPage extends StatefulWidget {
   final Catalogo catalogo;
   final String? rascunhoId;
+  final bool modoEdicao;
+  final bool emCorrecaoSolicitada;
 
-  const ChecklistFormPage({super.key, required this.catalogo, this.rascunhoId});
+  const ChecklistFormPage({
+    super.key,
+    required this.catalogo,
+    this.rascunhoId,
+    this.modoEdicao = false,
+    this.emCorrecaoSolicitada = false,
+  });
 
   @override
   State<ChecklistFormPage> createState() => _ChecklistFormPageState();
@@ -29,6 +37,8 @@ class _ChecklistFormPageState extends State<ChecklistFormPage> {
       catalogo: widget.catalogo,
       usuarioId: context.read<Sessao>().usuarioId!,
       rascunhoId: widget.rascunhoId,
+      modoEdicao: widget.modoEdicao,
+      emCorrecaoSolicitada: widget.emCorrecaoSolicitada,
     )..inicializar();
   }
 

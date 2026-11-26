@@ -50,13 +50,14 @@ class ChecklistEdicaoController extends ChangeNotifier {
   bool _disposed = false;
 
   ChecklistEdicaoController({
-    required this._api,
+    required Api api,
     required this.catalogo,
     required this.usuarioId,
     String? rascunhoId,
     this.modoEdicao = false,
     this.emCorrecaoSolicitada = false,
-  }) : turno = turnoSugerido(DateTime.now()),
+  }) : _api = api,
+       turno = turnoSugerido(DateTime.now()),
        dataTurno = DateTime.now(),
        horaEntrada = horaAtual(DateTime.now()) {
     inicioPreenchimento = DateTime.now();

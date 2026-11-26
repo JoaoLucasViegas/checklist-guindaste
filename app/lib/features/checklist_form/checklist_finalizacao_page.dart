@@ -24,6 +24,7 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
   late final TextEditingController _horimetroFinal;
   late final TextEditingController _observacao;
   String? _erroSincronizacao;
+  bool _confirmouCorrecoes = false;
 
   ChecklistEdicaoController get controller => widget.controller;
 
@@ -66,6 +67,15 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
   }
 
   Future<void> _finalizar() async {
+    if (controller.modoEdicao && !_confirmouCorrecoes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Marque "Confirmo as correções" para salvar.'),
+        ),
+      );
+      return;
+    }
+
     final bytes = _assinatura.isNotEmpty
         ? await _assinatura.toPngBytes()
         : null;
@@ -228,34 +238,55 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
             onChanged: controller.definirObservacaoGeral,
           ),
           const SizedBox(height: 20),
-          Text(
-            'Assinatura do operador',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Container(
-            height: 190,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Theme.of(context).colorScheme.outline),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: IgnorePointer(
-              ignoring: controller.enviando,
-              child: Signature(
-                controller: _assinatura,
-                backgroundColor: Colors.white,
+          if (controller.modoEdicao) ...[
+            Card(
+              color: Colors.amber.shade50,
+              child: CheckboxListTile(
+                value: _confirmouCorrecoes,
+                onChanged: controller.enviando
+                    ? null
+                    : (v) => setState(() => _confirmouCorrecoes = v ?? false),
+                title: const Text(
+                  'Confirmo as correções',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: const Text(
+                  'A assinatura original será mantida — não é necessário assinar novamente.',
+                ),
               ),
             ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: controller.enviando ? null : _assinatura.clear,
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('Limpar assinatura'),
+          ] else ...[
+            Text(
+              'Assinatura do operador',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-          ),
+            const SizedBox(height: 8),
+            Container(
+              height: 190,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: IgnorePointer(
+                ignoring: controller.enviando,
+                child: Signature(
+                  controller: _assinatura,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: controller.enviando ? null : _assinatura.clear,
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Limpar assinatura'),
+              ),
+            ),
+          ],
           if (controller.errosValidacao.isNotEmpty ||
               controller.erro != null) ...[
             const SizedBox(height: 8),
@@ -316,7 +347,11 @@ class _ChecklistFinalizacaoPageState extends State<ChecklistFinalizacaoPage> {
                         )
                       : const Icon(Icons.save),
                   label: Text(
-                    controller.enviando ? 'Salvando…' : 'Finalizar e salvar',
+                    controller.enviando
+                        ? 'Salvando…'
+                        : (controller.modoEdicao
+                              ? 'Confirmo as correções'
+                              : 'Finalizar e salvar'),
                   ),
                 ),
               ),
